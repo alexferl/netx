@@ -21,4 +21,4 @@ jobs:
         uses: laytan/setup-odin@v2
 
       - name: Run Tests
-        run: odin test tests/ -all-packages -define:ODIN_TEST_FANCY=false -disallow-do -sanitize:address -strict-style -vet -vet-style -vet-tabs -warnings-as-error
+        run: odin test tests/ -all-packages -define:ODIN_TEST_FANCY=false -disallow-do -sanitize:address -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
