@@ -1,0 +1,28 @@
+name: check
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+  unit:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Odin
+        uses: laytan/setup-odin@v2
+
+      - name: Run Checks
+        run: odin check . -disallow-do -no-entry-point -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
+
+      - name: Run Checks Examples IP
+        run: odin check examples/ip -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
+
+      - name: Run Checks Examples IPAM
+        run: odin check examples/ipam -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors

@@ -1,0 +1,24 @@
+name: test
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+  unit:
+    strategy:
+      matrix:
+        os: [ macos-latest, ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Fetch Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Odin
+        uses: laytan/setup-odin@v2
+
+      - name: Run Tests
+        run: odin test tests/ -all-packages -define:ODIN_TEST_FANCY=false -disallow-do -sanitize:address -strict-style -vet -vet-style -vet-tabs -warnings-as-error

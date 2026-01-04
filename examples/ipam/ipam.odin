@@ -1,0 +1,279 @@
+package main
+
+import "core:fmt"
+import "core:net"
+import netx "../.."
+
+main :: proc() {
+	// ========================================================================
+	// CIDR AGGREGATION
+	// ========================================================================
+
+	fmt.println("--- CIDR Aggregation ---")
+
+	// Two adjacent /25 networks merge into /24
+	networks := []netx.IP4_Network{
+		netx.must_parse_cidr4("192.168.1.0/25"),
+		netx.must_parse_cidr4("192.168.1.128/25"),
+	}
+
+	fmt.println("Before aggregation:")
+	for net in networks {
+		fmt.printf("  %s\n", netx.network_to_string4(net))
+	}
+
+	aggregated := netx.aggregate_networks4(networks, context.temp_allocator)
+	fmt.println("After aggregation:")
+	for net in aggregated {
+		fmt.printf("  %s\n", netx.network_to_string4(net))
+	}
+
+	// Four /26 networks merge into /24
+	fmt.println("\nMultiple network aggregation:")
+	many_networks := []netx.IP4_Network{
+		netx.must_parse_cidr4("10.0.0.0/26"),
+		netx.must_parse_cidr4("10.0.0.64/26"),
+		netx.must_parse_cidr4("10.0.0.128/26"),
+		netx.must_parse_cidr4("10.0.0.192/26"),
+	}
+
+	fmt.println("Before:")
+	for net in many_networks {
+		fmt.printf("  %s\n", netx.network_to_string4(net))
+	}
+
+	aggregated_many := netx.aggregate_networks4(many_networks, context.temp_allocator)
+	fmt.println("After:")
+	for net in aggregated_many {
+		fmt.printf("  %s\n", netx.network_to_string4(net))
+	}
+
+	// ========================================================================
+	// RANGE TO CIDR CONVERSION
+	// ========================================================================
+
+	fmt.println("\n--- Range to CIDR Conversion ---")
+
+	start := net.IP4_Address{192, 168, 1, 10}
+	end := net.IP4_Address{192, 168, 1, 50}
+
+	fmt.printf("Converting range %s - %s to CIDRs:\n",
+	netx.addr_to_string4(start), netx.addr_to_string4(end))
+
+	cidrs := netx.range_to_cidrs4(start, end, context.temp_allocator)
+	for cidr in cidrs {
+		first, last := netx.network_range4(cidr)
+		fmt.printf("  %s (%s - %s)\n",
+		netx.network_to_string4(cidr),
+		netx.addr_to_string4(first),
+		netx.addr_to_string4(last))
+	}
+
+	// ========================================================================
+	// ADDRESS POOL ALLOCATION
+	// ========================================================================
+
+	fmt.println("\n--- Address Pool Allocation ---")
+
+	pool_network := netx.must_parse_cidr4("10.0.1.0/29")  // Small pool: 6 usable IPs
+	fmt.printf("Creating pool from %s\n", netx.network_to_string4(pool_network))
+
+	pool := netx.pool4_init(pool_network)
+	defer netx.pool4_destroy(&pool)
+
+	fmt.printf("Available IPs: %d\n", netx.pool4_available(&pool))
+
+	// Allocate some addresses
+	fmt.println("\nAllocating addresses:")
+	allocated_ips: [dynamic]net.IP4_Address
+	defer delete(allocated_ips)
+
+	for _ in 0..<4 {
+		ip, ok := netx.pool4_allocate(&pool)
+		if ok {
+			fmt.printf("  Allocated: %s\n", netx.addr_to_string4(ip))
+			append(&allocated_ips, ip)
+		} else {
+			fmt.println("  Failed to allocate")
+		}
+	}
+
+	fmt.printf("\nRemaining available: %d\n", netx.pool4_available(&pool))
+
+	// Free one address
+	if len(allocated_ips) > 0 {
+		freed_ip := allocated_ips[1]
+		fmt.printf("\nFreeing %s\n", netx.addr_to_string4(freed_ip))
+		netx.pool4_free(&pool, freed_ip)
+		fmt.printf("Available after free: %d\n", netx.pool4_available(&pool))
+
+		// Allocate again - should get the freed address
+		new_ip, ok := netx.pool4_allocate(&pool)
+		if ok {
+			fmt.printf("Re-allocated: %s\n", netx.addr_to_string4(new_ip))
+		}
+	}
+
+	// Check allocation status
+	fmt.println("\nAllocation status:")
+	for ip in allocated_ips {
+		is_allocated := netx.pool4_is_allocated(&pool, ip)
+		fmt.printf("  %s: %s\n",
+		netx.addr_to_string4(ip),
+		is_allocated ? "allocated" : "free")
+	}
+
+	// ========================================================================
+	// IPv6 POOL
+	// ========================================================================
+
+	fmt.println("\n--- IPv6 Pool Allocation ---")
+
+	pool6_network := netx.must_parse_cidr6("2001:db8::/126")  // Small pool
+	fmt.printf("Creating IPv6 pool from %s\n", netx.network_to_string6(pool6_network))
+
+	pool6 := netx.pool6_init(pool6_network)
+	defer netx.pool6_destroy(&pool6)
+
+	fmt.println("\nAllocating IPv6 addresses:")
+	for _ in 0..<3 {
+		ip6, ok := netx.pool6_allocate(&pool6)
+		if ok {
+			fmt.printf("  Allocated: %s\n", netx.addr_to_string6(ip6))
+		}
+	}
+
+	// ========================================================================
+	// SUPERNET CALCULATION
+	// ========================================================================
+
+	fmt.println("\n--- Supernet Calculation ---")
+
+	net_a := netx.must_parse_cidr4("192.168.0.0/24")
+	net_b := netx.must_parse_cidr4("192.168.1.0/24")
+
+	fmt.printf("Finding supernet of %s and %s\n",
+	netx.network_to_string4(net_a),
+	netx.network_to_string4(net_b))
+
+	super := netx.supernet4(net_a, net_b)
+	fmt.printf("Supernet: %s\n", netx.network_to_string4(super))
+
+	// Distant networks
+	fmt.println("\nDistant network supernet:")
+	distant_a := netx.must_parse_cidr4("10.0.0.0/24")
+	distant_b := netx.must_parse_cidr4("172.16.0.0/24")
+
+	fmt.printf("Finding supernet of %s and %s\n",
+	netx.network_to_string4(distant_a),
+	netx.network_to_string4(distant_b))
+
+	distant_super := netx.supernet4(distant_a, distant_b)
+	fmt.printf("Supernet: %s (encompasses both networks)\n", netx.network_to_string4(distant_super))
+
+	// IPv6 supernet
+	fmt.println("\n--- IPv6 Supernet ---")
+	net6_a := netx.must_parse_cidr6("2001:db8::/64")
+	net6_b := netx.must_parse_cidr6("2001:db8:0:1::/64")
+
+	fmt.printf("Finding supernet of %s and %s\n",
+	netx.network_to_string6(net6_a),
+	netx.network_to_string6(net6_b))
+
+	super6 := netx.supernet6(net6_a, net6_b)
+	fmt.printf("Supernet: %s\n", netx.network_to_string6(super6))
+
+	// ========================================================================
+	// NETWORK EXCLUSION
+	// ========================================================================
+
+	fmt.println("\n--- Network Exclusion ---")
+
+	from := netx.must_parse_cidr4("192.168.1.0/24")
+	exclude := netx.must_parse_cidr4("192.168.1.128/25")
+
+	fmt.printf("Excluding %s from %s\n",
+	netx.network_to_string4(exclude),
+	netx.network_to_string4(from))
+
+	remaining := netx.exclude4(from, exclude, context.temp_allocator)
+	fmt.println("Remaining networks:")
+	for net in remaining {
+		first, last := netx.network_range4(net)
+		fmt.printf("  %s (%s - %s)\n",
+		netx.network_to_string4(net),
+		netx.addr_to_string4(first),
+		netx.addr_to_string4(last))
+	}
+
+	// Exclude a smaller subnet
+	fmt.println("\nExcluding smaller subnet:")
+	from2 := netx.must_parse_cidr4("10.0.0.0/24")
+	exclude2 := netx.must_parse_cidr4("10.0.0.64/26")
+
+	fmt.printf("Excluding %s from %s\n",
+	netx.network_to_string4(exclude2),
+	netx.network_to_string4(from2))
+
+	remaining2 := netx.exclude4(from2, exclude2, context.temp_allocator)
+	fmt.println("Remaining networks:")
+	for net in remaining2 {
+		fmt.printf("  %s\n", netx.network_to_string4(net))
+	}
+
+	// No overlap - should return original
+	fmt.println("\nExcluding non-overlapping network:")
+	from3 := netx.must_parse_cidr4("192.168.1.0/24")
+	exclude3 := netx.must_parse_cidr4("10.0.0.0/24")
+
+	fmt.printf("Excluding %s from %s\n",
+	netx.network_to_string4(exclude3),
+	netx.network_to_string4(from3))
+
+	remaining3 := netx.exclude4(from3, exclude3, context.temp_allocator)
+	fmt.println("Remaining networks:")
+	for net in remaining3 {
+		fmt.printf("  %s\n", netx.network_to_string4(net))
+	}
+
+	// IPv6 exclusion
+	fmt.println("\n--- IPv6 Network Exclusion ---")
+	from6 := netx.must_parse_cidr6("2001:db8::/64")
+	exclude6 := netx.must_parse_cidr6("2001:db8::/65")
+
+	fmt.printf("Excluding %s from %s\n",
+	netx.network_to_string6(exclude6),
+	netx.network_to_string6(from6))
+
+	remaining6 := netx.exclude6(from6, exclude6, context.temp_allocator)
+	fmt.println("Remaining networks:")
+	for net in remaining6 {
+		fmt.printf("  %s\n", netx.network_to_string6(net))
+	}
+
+	// ========================================================================
+	// ADDRESS CONVERSION UTILITIES
+	// ========================================================================
+
+	fmt.println("\n--- Address Conversion ---")
+
+	addr := net.IP4_Address{192, 168, 1, 100}
+	fmt.printf("Address: %s\n", netx.addr_to_string4(addr))
+
+	addr_u32 := netx.addr4_to_u32(addr)
+	fmt.printf("As u32: %d (0x%08X)\n", addr_u32, addr_u32)
+
+	back_to_addr := netx.u32_to_addr4(addr_u32)
+	fmt.printf("Back to address: %s\n", netx.addr_to_string4(back_to_addr))
+
+	// IPv6 conversion
+	fmt.println("\nIPv6 address conversion:")
+	addr6 := netx.ipv6_loopback()
+	fmt.printf("Address: %s\n", netx.addr_to_string6(addr6))
+
+	addr6_u128 := netx.addr6_to_u128(addr6)
+	fmt.printf("As u128: %d\n", addr6_u128)
+
+	back_to_addr6 := netx.u128_to_addr6(addr6_u128)
+	fmt.printf("Back to address: %s\n", netx.addr_to_string6(back_to_addr6))
+}
