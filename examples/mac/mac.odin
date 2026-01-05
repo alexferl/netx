@@ -1,7 +1,6 @@
 package main
 
 import "core:fmt"
-import "core:net"
 import netx "../.."
 
 main :: proc() {

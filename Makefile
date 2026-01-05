@@ -24,8 +24,10 @@ pre-commit: check-pre-commit
 
 check:
 	odin check . -disallow-do -no-entry-point -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
+	odin check examples/dns -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 	odin check examples/ip -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 	odin check examples/ipam -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
+	odin check examples/mac -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 
 test:
 	odin test tests/ -all-packages -disallow-do -sanitize:address -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
