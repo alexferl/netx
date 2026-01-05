@@ -205,4 +205,3 @@ main :: proc() {
 	eui_from_bytes := netx.eui64_from_bytes(eui_bytes)
 	fmt.printf("Created EUI-64 from bytes: %s\n", netx.eui64_to_string(eui_from_bytes, ":", true))
 }
-
