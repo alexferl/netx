@@ -1,7 +1,7 @@
 package test_netx
 
-import "core:testing"
 import "core:net"
+import "core:testing"
 import netx "../"
 
 // ============================================================================
