@@ -645,6 +645,157 @@ less_network6 :: proc(a, b: IP6_Network) -> bool {
 }
 
 // ============================================================================
+// NETWORK PREFIX OPERATIONS
+// ============================================================================
+
+// next_network4 returns the next adjacent network of the same prefix length.
+// Example: 192.168.1.0/24 -> 192.168.2.0/24
+next_network4 :: proc(network: IP4_Network) -> (next: IP4_Network, ok: bool) {
+	// Calculate network size
+	if network.prefix_len == 0 {
+		return {}, false  // 0.0.0.0/0 has no next network
+	}
+
+	network_size := u32(1) << (32 - network.prefix_len)
+
+	current_addr_u32 := addr4_to_u32(network.address)
+	next_addr_u32 := current_addr_u32 + network_size
+
+	// Check for overflow
+	if next_addr_u32 < current_addr_u32 {
+		return {}, false
+	}
+
+	next_addr := u32_to_addr4(next_addr_u32)
+	return IP4_Network{next_addr, network.prefix_len}, true
+}
+
+// prev_network4 returns the previous adjacent network of the same prefix length.
+// Example: 192.168.2.0/24 -> 192.168.1.0/24
+prev_network4 :: proc(network: IP4_Network) -> (prev: IP4_Network, ok: bool) {
+	// Calculate network size
+	if network.prefix_len == 0 {
+		return {}, false  // 0.0.0.0/0 has no previous network
+	}
+
+	network_size := u32(1) << (32 - network.prefix_len)
+
+	current_addr_u32 := addr4_to_u32(network.address)
+
+	// Check for underflow
+	if current_addr_u32 < network_size {
+		return {}, false
+	}
+
+	prev_addr_u32 := current_addr_u32 - network_size
+	prev_addr := u32_to_addr4(prev_addr_u32)
+
+	return IP4_Network{prev_addr, network.prefix_len}, true
+}
+
+// parent_network4 returns the parent network (one bit less specific).
+// Example: 192.168.1.0/24 -> 192.168.0.0/23
+parent_network4 :: proc(network: IP4_Network) -> (parent: IP4_Network, ok: bool) {
+	if network.prefix_len == 0 {
+		return {}, false  // 0.0.0.0/0 has no parent
+	}
+
+	new_prefix := network.prefix_len - 1
+	result := IP4_Network{network.address, new_prefix}
+
+	// Mask to ensure proper network address
+	return masked4(result), true
+}
+
+// is_subnet_of4 checks if subnet is a subnet of parent.
+// A network is considered a subnet if it's fully contained within the parent
+// and has a longer (more specific) prefix.
+is_subnet_of4 :: proc(subnet: IP4_Network, parent: IP4_Network) -> bool {
+	// Subnet must have longer or equal prefix
+	if subnet.prefix_len < parent.prefix_len {
+		return false
+	}
+
+	// If prefixes are equal, networks must be identical
+	if subnet.prefix_len == parent.prefix_len {
+		return subnet.address == parent.address
+	}
+
+	// Check if subnet is contained in parent
+	return contains4(parent, subnet.address)
+}
+
+// next_network6 returns the next adjacent network of the same prefix length.
+next_network6 :: proc(network: IP6_Network) -> (next: IP6_Network, ok: bool) {
+	if network.prefix_len == 0 {
+		return {}, false  // ::/0 has no next network
+	}
+
+	// For IPv6, we need to handle u128 arithmetic
+	current_addr_u128 := addr6_to_u128(network.address)
+	network_size := u128(1) << (128 - network.prefix_len)
+
+	next_addr_u128 := current_addr_u128 + network_size
+
+	// Check for overflow
+	if next_addr_u128 < current_addr_u128 {
+		return {}, false
+	}
+
+	next_addr := u128_to_addr6(next_addr_u128)
+	return IP6_Network{next_addr, network.prefix_len}, true
+}
+
+// prev_network6 returns the previous adjacent network of the same prefix length.
+prev_network6 :: proc(network: IP6_Network) -> (prev: IP6_Network, ok: bool) {
+	if network.prefix_len == 0 {
+		return {}, false  // ::/0 has no previous network
+	}
+
+	current_addr_u128 := addr6_to_u128(network.address)
+	network_size := u128(1) << (128 - network.prefix_len)
+
+	// Check for underflow
+	if current_addr_u128 < network_size {
+		return {}, false
+	}
+
+	prev_addr_u128 := current_addr_u128 - network_size
+	prev_addr := u128_to_addr6(prev_addr_u128)
+
+	return IP6_Network{prev_addr, network.prefix_len}, true
+}
+
+// parent_network6 returns the parent network (one bit less specific).
+parent_network6 :: proc(network: IP6_Network) -> (parent: IP6_Network, ok: bool) {
+	if network.prefix_len == 0 {
+		return {}, false  // ::/0 has no parent
+	}
+
+	new_prefix := network.prefix_len - 1
+	result := IP6_Network{network.address, new_prefix}
+
+	// Mask to ensure proper network address
+	return masked6(result), true
+}
+
+// is_subnet_of6 checks if subnet is a subnet of parent.
+is_subnet_of6 :: proc(subnet: IP6_Network, parent: IP6_Network) -> bool {
+// Subnet must have longer or equal prefix
+	if subnet.prefix_len < parent.prefix_len {
+		return false
+	}
+
+	// If prefixes are equal, networks must be identical
+	if subnet.prefix_len == parent.prefix_len {
+		return subnet.address == parent.address
+	}
+
+	// Check if subnet is contained in parent
+	return contains6(parent, subnet.address)
+}
+
+// ============================================================================
 // SUBNET OPERATION
 // ============================================================================
 

@@ -1045,6 +1045,217 @@ test_less_network6 :: proc(t: ^testing.T) {
 }
 
 // ============================================================================
+// NETWORK PREFIX OPERATION TESTS
+// ============================================================================
+
+@(test)
+test_next_network4 :: proc(t: ^testing.T) {
+	// /24 network
+	net1 := netx.must_parse_cidr4("192.168.1.0/24")
+	next1, ok1 := netx.next_network4(net1)
+	testing.expect(t, ok1, "Should get next network")
+	testing.expect_value(t, next1.address, net.IP4_Address{192, 168, 2, 0})
+	testing.expect_value(t, next1.prefix_len, u8(24))
+
+	// /16 network
+	net2 := netx.must_parse_cidr4("10.0.0.0/16")
+	next2, ok2 := netx.next_network4(net2)
+	testing.expect(t, ok2, "Should get next network")
+	testing.expect_value(t, next2.address, net.IP4_Address{10, 1, 0, 0})
+	testing.expect_value(t, next2.prefix_len, u8(16))
+
+	// /30 network
+	net3 := netx.must_parse_cidr4("192.168.1.0/30")
+	next3, ok3 := netx.next_network4(net3)
+	testing.expect(t, ok3, "Should get next network")
+	testing.expect_value(t, next3.address, net.IP4_Address{192, 168, 1, 4})
+	testing.expect_value(t, next3.prefix_len, u8(30))
+}
+
+@(test)
+test_next_network4_overflow :: proc(t: ^testing.T) {
+	// Last /24 network
+	net := netx.must_parse_cidr4("255.255.255.0/24")
+	_, ok := netx.next_network4(net)
+	testing.expect(t, !ok, "Should fail at overflow")
+
+	// /0 network
+	net0 := netx.must_parse_cidr4("0.0.0.0/0")
+	_, ok0 := netx.next_network4(net0)
+	testing.expect(t, !ok0, "Should fail for /0")
+}
+
+@(test)
+test_prev_network4 :: proc(t: ^testing.T) {
+	// /24 network
+	net1 := netx.must_parse_cidr4("192.168.2.0/24")
+	prev1, ok1 := netx.prev_network4(net1)
+	testing.expect(t, ok1, "Should get previous network")
+	testing.expect_value(t, prev1.address, net.IP4_Address{192, 168, 1, 0})
+	testing.expect_value(t, prev1.prefix_len, u8(24))
+
+	// /16 network
+	net2 := netx.must_parse_cidr4("10.1.0.0/16")
+	prev2, ok2 := netx.prev_network4(net2)
+	testing.expect(t, ok2, "Should get previous network")
+	testing.expect_value(t, prev2.address, net.IP4_Address{10, 0, 0, 0})
+	testing.expect_value(t, prev2.prefix_len, u8(16))
+
+	// /30 network
+	net3 := netx.must_parse_cidr4("192.168.1.4/30")
+	prev3, ok3 := netx.prev_network4(net3)
+	testing.expect(t, ok3, "Should get previous network")
+	testing.expect_value(t, prev3.address, net.IP4_Address{192, 168, 1, 0})
+	testing.expect_value(t, prev3.prefix_len, u8(30))
+}
+
+@(test)
+test_prev_network4_underflow :: proc(t: ^testing.T) {
+	// First /24 network
+	net := netx.must_parse_cidr4("0.0.0.0/24")
+	_, ok := netx.prev_network4(net)
+	testing.expect(t, !ok, "Should fail at underflow")
+
+	// /0 network
+	net0 := netx.must_parse_cidr4("0.0.0.0/0")
+	_, ok0 := netx.prev_network4(net0)
+	testing.expect(t, !ok0, "Should fail for /0")
+}
+
+@(test)
+test_parent_network4 :: proc(t: ^testing.T) {
+	// /24 -> /23
+	net1 := netx.must_parse_cidr4("192.168.1.0/24")
+	parent1, ok1 := netx.parent_network4(net1)
+	testing.expect(t, ok1, "Should get parent network")
+	testing.expect_value(t, parent1.address, net.IP4_Address{192, 168, 0, 0})
+	testing.expect_value(t, parent1.prefix_len, u8(23))
+
+	// /16 -> /15
+	net2 := netx.must_parse_cidr4("10.0.0.0/16")
+	parent2, ok2 := netx.parent_network4(net2)
+	testing.expect(t, ok2, "Should get parent network")
+	testing.expect_value(t, parent2.address, net.IP4_Address{10, 0, 0, 0})
+	testing.expect_value(t, parent2.prefix_len, u8(15))
+
+	// /8 -> /7
+	net3 := netx.must_parse_cidr4("10.0.0.0/8")
+	parent3, ok3 := netx.parent_network4(net3)
+	testing.expect(t, ok3, "Should get parent network")
+	testing.expect_value(t, parent3.address, net.IP4_Address{10, 0, 0, 0})
+	testing.expect_value(t, parent3.prefix_len, u8(7))
+}
+
+@(test)
+test_parent_network4_no_parent :: proc(t: ^testing.T) {
+	// /0 has no parent
+	net := netx.must_parse_cidr4("0.0.0.0/0")
+	_, ok := netx.parent_network4(net)
+	testing.expect(t, !ok, "Should fail for /0")
+}
+
+@(test)
+test_is_subnet_of4 :: proc(t: ^testing.T) {
+	parent := netx.must_parse_cidr4("192.168.0.0/16")
+
+	// Subnet is contained
+	subnet1 := netx.must_parse_cidr4("192.168.1.0/24")
+	testing.expect(t, netx.is_subnet_of4(subnet1, parent), "Should be a subnet")
+
+	// More specific subnet
+	subnet2 := netx.must_parse_cidr4("192.168.1.128/25")
+	testing.expect(t, netx.is_subnet_of4(subnet2, parent), "Should be a subnet")
+
+	// Same network
+	same := netx.must_parse_cidr4("192.168.0.0/16")
+	testing.expect(t, netx.is_subnet_of4(same, parent), "Same network is considered a subnet")
+
+	// Not a subnet - different network
+	not_subnet1 := netx.must_parse_cidr4("192.169.0.0/16")
+	testing.expect(t, !netx.is_subnet_of4(not_subnet1, parent), "Should not be a subnet")
+
+	// Not a subnet - less specific
+	not_subnet2 := netx.must_parse_cidr4("192.168.0.0/15")
+	testing.expect(t, !netx.is_subnet_of4(not_subnet2, parent), "Parent cannot be subnet of child")
+
+	// Not a subnet - outside range
+	not_subnet3 := netx.must_parse_cidr4("10.0.0.0/24")
+	testing.expect(t, !netx.is_subnet_of4(not_subnet3, parent), "Should not be a subnet")
+}
+
+@(test)
+test_next_network6 :: proc(t: ^testing.T) {
+	// /64 network
+	net1 := netx.must_parse_cidr6("2001:db8::/64")
+	next1, ok1 := netx.next_network6(net1)
+	testing.expect(t, ok1, "Should get next network")
+	testing.expect_value(t, next1.prefix_len, u8(64))
+
+	// /48 network
+	net2 := netx.must_parse_cidr6("2001:db8::/48")
+	next2, ok2 := netx.next_network6(net2)
+	testing.expect(t, ok2, "Should get next network")
+	testing.expect_value(t, next2.prefix_len, u8(48))
+}
+
+@(test)
+test_prev_network6 :: proc(t: ^testing.T) {
+	// /64 network
+	net1 := netx.must_parse_cidr6("2001:db8:0:1::/64")
+	prev1, ok1 := netx.prev_network6(net1)
+	testing.expect(t, ok1, "Should get previous network")
+	testing.expect_value(t, prev1.prefix_len, u8(64))
+}
+
+@(test)
+test_parent_network6 :: proc(t: ^testing.T) {
+	// /64 -> /63
+	net1 := netx.must_parse_cidr6("2001:db8::/64")
+	parent1, ok1 := netx.parent_network6(net1)
+	testing.expect(t, ok1, "Should get parent network")
+	testing.expect_value(t, parent1.prefix_len, u8(63))
+
+	// /32 -> /31
+	net2 := netx.must_parse_cidr6("2001:db8::/32")
+	parent2, ok2 := netx.parent_network6(net2)
+	testing.expect(t, ok2, "Should get parent network")
+	testing.expect_value(t, parent2.prefix_len, u8(31))
+}
+
+@(test)
+test_parent_network6_no_parent :: proc(t: ^testing.T) {
+	// ::/0 has no parent
+	net := netx.must_parse_cidr6("::/0")
+	_, ok := netx.parent_network6(net)
+	testing.expect(t, !ok, "Should fail for ::/0")
+}
+
+@(test)
+test_is_subnet_of6 :: proc(t: ^testing.T) {
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// Subnet is contained
+	subnet1 := netx.must_parse_cidr6("2001:db8:1::/48")
+	testing.expect(t, netx.is_subnet_of6(subnet1, parent), "Should be a subnet")
+
+	// More specific subnet
+	subnet2 := netx.must_parse_cidr6("2001:db8:1:2::/64")
+	testing.expect(t, netx.is_subnet_of6(subnet2, parent), "Should be a subnet")
+
+	// Same network
+	same := netx.must_parse_cidr6("2001:db8::/32")
+	testing.expect(t, netx.is_subnet_of6(same, parent), "Same network is considered a subnet")
+
+	// Not a subnet - different network
+	not_subnet1 := netx.must_parse_cidr6("2001:db9::/32")
+	testing.expect(t, !netx.is_subnet_of6(not_subnet1, parent), "Should not be a subnet")
+
+	// Not a subnet - less specific
+	not_subnet2 := netx.must_parse_cidr6("2001:db8::/31")
+	testing.expect(t, !netx.is_subnet_of6(not_subnet2, parent), "Parent cannot be subnet of child")
+}
+
+// ============================================================================
 // SUBNET OPERATION TESTS
 // ============================================================================
 

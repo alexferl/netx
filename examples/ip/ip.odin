@@ -96,6 +96,58 @@ main :: proc() {
 		fmt.printf("Previous IP: %s\n", netx.addr_to_string4(prev_ip))
 	}
 
+	fmt.println("\n--- IPv4: Network Navigation ---")
+	base_net := netx.must_parse_cidr4("192.168.1.0/24")
+	fmt.printf("Base network: %s\n", netx.network_to_string4(base_net))
+
+	next_net, next_net_ok := netx.next_network4(base_net)
+	if next_net_ok {
+		fmt.printf("Next network: %s\n", netx.network_to_string4(next_net))
+	}
+
+	prev_net, prev_net_ok := netx.prev_network4(base_net)
+	if prev_net_ok {
+		fmt.printf("Previous network: %s\n", netx.network_to_string4(prev_net))
+	}
+
+	parent_net, parent_net_ok := netx.parent_network4(base_net)
+	if parent_net_ok {
+		fmt.printf("Parent network (one bit less specific): %s\n", netx.network_to_string4(parent_net))
+	}
+
+	fmt.println("\n--- IPv4: Subnet Relationships ---")
+	parent := netx.must_parse_cidr4("10.0.0.0/8")
+	subnet1 := netx.must_parse_cidr4("10.1.0.0/16")
+	subnet2 := netx.must_parse_cidr4("10.1.1.0/24")
+	outside := netx.must_parse_cidr4("192.168.1.0/24")
+
+	fmt.printf("Is %s a subnet of %s? %v\n",
+	netx.network_to_string4(subnet1),
+	netx.network_to_string4(parent),
+	netx.is_subnet_of4(subnet1, parent))
+
+	fmt.printf("Is %s a subnet of %s? %v\n",
+	netx.network_to_string4(subnet2),
+	netx.network_to_string4(parent),
+	netx.is_subnet_of4(subnet2, parent))
+
+	fmt.printf("Is %s a subnet of %s? %v\n",
+	netx.network_to_string4(outside),
+	netx.network_to_string4(parent),
+	netx.is_subnet_of4(outside, parent))
+
+	// Navigating through adjacent networks
+	fmt.println("\nNavigating through /28 networks:")
+	current := netx.must_parse_cidr4("192.168.1.0/28")
+	for i := 0; i < 3; i += 1 {
+		fmt.printf("  %s\n", netx.network_to_string4(current))
+		next, ok_next := netx.next_network4(current)
+		if !ok_next {
+			break
+		}
+		current = next
+	}
+
 	// ========================================================================
 	// IPv6 EXAMPLES
 	// ========================================================================
@@ -188,4 +240,44 @@ main :: proc() {
 	netx.network_to_string6(net6_a),
 	netx.network_to_string6(net6_b),
 	netx.overlaps6(net6_a, net6_b))
+
+	fmt.println("\n--- IPv6: Network Navigation ---")
+	base_net6 := netx.must_parse_cidr6("2001:db8::/64")
+	fmt.printf("Base network: %s\n", netx.network_to_string6(base_net6))
+
+	next_net6, next_net6_ok := netx.next_network6(base_net6)
+	if next_net6_ok {
+		fmt.printf("Next network: %s\n", netx.network_to_string6(next_net6))
+	}
+
+	prev_net6, prev_net6_ok := netx.prev_network6(base_net6)
+	if prev_net6_ok {
+		fmt.printf("Previous network: %s\n", netx.network_to_string6(prev_net6))
+	}
+
+	parent_net6, parent_net6_ok := netx.parent_network6(base_net6)
+	if parent_net6_ok {
+		fmt.printf("Parent network (one bit less specific): %s\n", netx.network_to_string6(parent_net6))
+	}
+
+	fmt.println("\n--- IPv6: Subnet Relationships ---")
+	parent6 := netx.must_parse_cidr6("2001:db8::/32")
+	subnet6_1 := netx.must_parse_cidr6("2001:db8:1::/48")
+	subnet6_2 := netx.must_parse_cidr6("2001:db8:1:2::/64")
+	outside6 := netx.must_parse_cidr6("2001:db9::/32")
+
+	fmt.printf("Is %s a subnet of %s? %v\n",
+	netx.network_to_string6(subnet6_1),
+	netx.network_to_string6(parent6),
+	netx.is_subnet_of6(subnet6_1, parent6))
+
+	fmt.printf("Is %s a subnet of %s? %v\n",
+	netx.network_to_string6(subnet6_2),
+	netx.network_to_string6(parent6),
+	netx.is_subnet_of6(subnet6_2, parent6))
+
+	fmt.printf("Is %s a subnet of %s? %v\n",
+	netx.network_to_string6(outside6),
+	netx.network_to_string6(parent6),
+	netx.is_subnet_of6(outside6, parent6))
 }

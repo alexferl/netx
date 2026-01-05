@@ -836,3 +836,226 @@ test_exclude6_complete :: proc(t: ^testing.T) {
 	result := netx.exclude6(from, exclude, context.temp_allocator)
 	testing.expect_value(t, len(result), 0)
 }
+
+// ============================================================================
+// ADVANCED SUBNET UTILITY TESTS
+// ============================================================================
+
+@(test)
+test_find_free_subnets4 :: proc(t: ^testing.T) {
+	// Parent: 192.168.0.0/16
+	parent := netx.must_parse_cidr4("192.168.0.0/16")
+
+	// Used: 192.168.1.0/24 and 192.168.3.0/24
+	used := []netx.IP4_Network{
+		netx.must_parse_cidr4("192.168.1.0/24"),
+		netx.must_parse_cidr4("192.168.3.0/24"),
+	}
+
+	// Find free /24 subnets
+	free := netx.find_free_subnets4(parent, used, 24, context.temp_allocator)
+
+	// Should have many free /24s (256 total - 2 used = 254 free)
+	testing.expect(t, len(free) > 0, "Should find free subnets")
+
+	// Check that 192.168.0.0/24 is free
+	expected_addr := net.IP4_Address{192, 168, 0, 0}
+	found_first := false
+	for subnet in free {
+		if subnet.address == expected_addr && subnet.prefix_len == 24 {
+			found_first = true
+			break
+		}
+	}
+	testing.expect(t, found_first, "Should find 192.168.0.0/24 as free")
+
+	// Check that used networks are not in free list
+	for subnet in free {
+		for used_net in used {
+			testing.expect(t, !netx.overlaps4(subnet, used_net), "Free subnet should not overlap with used")
+		}
+	}
+}
+
+
+@(test)
+test_find_free_subnets4_no_space :: proc(t: ^testing.T) {
+	// Parent: 192.168.1.0/24
+	parent := netx.must_parse_cidr4("192.168.1.0/24")
+
+	// Used: entire parent
+	used := []netx.IP4_Network{parent}
+
+	// Try to find free /24 subnets
+	free := netx.find_free_subnets4(parent, used, 24, context.temp_allocator)
+
+	testing.expect_value(t, len(free), 0)
+}
+
+@(test)
+test_find_free_subnets4_all_free :: proc(t: ^testing.T) {
+	// Parent: 192.168.0.0/22
+	parent := netx.must_parse_cidr4("192.168.0.0/22")
+
+	// No used networks
+	used := []netx.IP4_Network{}
+
+	// Find free /24 subnets - should get 4
+	free := netx.find_free_subnets4(parent, used, 24, context.temp_allocator)
+
+	testing.expect_value(t, len(free), 4)
+}
+
+@(test)
+test_largest_free_block4 :: proc(t: ^testing.T) {
+	// Parent: 10.0.0.0/8
+	parent := netx.must_parse_cidr4("10.0.0.0/8")
+
+	// Used: 10.0.0.0/16 and 10.2.0.0/16
+	used := []netx.IP4_Network{
+		netx.must_parse_cidr4("10.0.0.0/16"),
+		netx.must_parse_cidr4("10.2.0.0/16"),
+	}
+
+	largest, ok := netx.largest_free_block4(parent, used, context.temp_allocator)
+	testing.expect(t, ok, "Should find largest free block")
+
+	// The largest gap should be quite large
+	// Either the gap between 10.0.0.0/16 and 10.2.0.0/16
+	// or after 10.2.0.0/16
+	testing.expect(t, largest.prefix_len < 16, "Largest block should be bigger than /16")
+}
+
+@(test)
+test_largest_free_block4_no_space :: proc(t: ^testing.T) {
+	// Parent: 192.168.1.0/24
+	parent := netx.must_parse_cidr4("192.168.1.0/24")
+
+	// Used: entire parent
+	used := []netx.IP4_Network{parent}
+
+	_, ok := netx.largest_free_block4(parent, used, context.temp_allocator)
+	testing.expect(t, !ok, "Should not find free block")
+}
+
+@(test)
+test_largest_free_block4_all_free :: proc(t: ^testing.T) {
+	// Parent: 192.168.0.0/16
+	parent := netx.must_parse_cidr4("192.168.0.0/16")
+
+	// No used networks
+	used := []netx.IP4_Network{}
+
+	largest, ok := netx.largest_free_block4(parent, used, context.temp_allocator)
+	testing.expect(t, ok, "Should find free block")
+	testing.expect_value(t, largest, parent)
+}
+
+@(test)
+test_subnet_utilization4 :: proc(t: ^testing.T) {
+	// Parent: 192.168.0.0/24 (256 addresses)
+	parent := netx.must_parse_cidr4("192.168.0.0/24")
+
+	// No usage
+	util_empty := netx.subnet_utilization4(parent, []netx.IP4_Network{})
+	testing.expect_value(t, util_empty, 0.0)
+
+	// Full usage
+	util_full := netx.subnet_utilization4(parent, []netx.IP4_Network{parent})
+	testing.expect_value(t, util_full, 1.0)
+
+	// Half usage - 192.168.0.0/25 (128 addresses)
+	half_used := []netx.IP4_Network{
+		netx.must_parse_cidr4("192.168.0.0/25"),
+	}
+	util_half := netx.subnet_utilization4(parent, half_used)
+	testing.expect_value(t, util_half, 0.5)
+
+	// Quarter usage - 192.168.0.0/26 (64 addresses)
+	quarter_used := []netx.IP4_Network{
+		netx.must_parse_cidr4("192.168.0.0/26"),
+	}
+	util_quarter := netx.subnet_utilization4(parent, quarter_used)
+	testing.expect_value(t, util_quarter, 0.25)
+}
+
+@(test)
+test_subnet_utilization4_overlapping :: proc(t: ^testing.T) {
+	// Parent: 192.168.1.0/24
+	parent := netx.must_parse_cidr4("192.168.1.0/24")
+
+	// Overlapping usage (should only count once)
+	used := []netx.IP4_Network{
+		netx.must_parse_cidr4("192.168.1.0/25"),  // First half
+		netx.must_parse_cidr4("192.168.1.0/26"),  // First quarter (overlaps with above)
+	}
+
+	util := netx.subnet_utilization4(parent, used)
+
+	// Should be 0.5 (only the /25 counts, /26 is within it)
+	testing.expect_value(t, util, 0.5)
+}
+
+@(test)
+test_find_free_subnets6 :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/32
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// Used: 2001:db8:1::/48
+	used := []netx.IP6_Network{
+		netx.must_parse_cidr6("2001:db8:1::/48"),
+	}
+
+	// Find free /48 subnets (this will take a while for large spaces,
+	// so we limit our search)
+	free := netx.find_free_subnets6(parent, used, 48, context.temp_allocator)
+
+	testing.expect(t, len(free) > 0, "Should find free IPv6 subnets")
+
+	// 2001:db8::/48 should be free
+	found_first := false
+	for subnet in free {
+		if subnet.prefix_len == 48 {
+			segments := cast([8]u16be)subnet.address
+			if u16(segments[0]) == 0x2001 && u16(segments[1]) == 0x0db8 && u16(segments[2]) == 0 {
+				found_first = true
+				break
+			}
+		}
+	}
+	testing.expect(t, found_first, "Should find 2001:db8::/48 as free")
+}
+
+@(test)
+test_largest_free_block6 :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/32
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// No used networks
+	used := []netx.IP6_Network{}
+
+	largest, ok := netx.largest_free_block6(parent, used, context.temp_allocator)
+	testing.expect(t, ok, "Should find free block")
+	testing.expect_value(t, largest, parent)
+}
+
+@(test)
+test_subnet_utilization6 :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/32
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// No usage
+	util_empty := netx.subnet_utilization6(parent, []netx.IP6_Network{})
+	testing.expect_value(t, util_empty, 0.0)
+
+	// Full usage
+	util_full := netx.subnet_utilization6(parent, []netx.IP6_Network{parent})
+	testing.expect_value(t, util_full, 1.0)
+
+	// Half usage
+	half_used := []netx.IP6_Network{
+		netx.must_parse_cidr6("2001:db8::/33"),
+	}
+	util_half := netx.subnet_utilization6(parent, half_used)
+	testing.expect_value(t, util_half, 0.5)
+}
