@@ -148,6 +148,30 @@ main :: proc() {
 		current = next
 	}
 
+	fmt.println("\n--- IPv4: Bitwise Operations ---")
+
+	ip := net.IP4_Address{192, 168, 1, 130}
+	mask := net.IP4_Address{255, 255, 255, 128}
+	network_addr := netx.ip4_and(ip, mask)
+	fmt.printf("AND: %s & %s = %s\n", netx.addr_to_string4(ip), netx.addr_to_string4(mask), netx.addr_to_string4(network_addr))
+
+	net_addr := net.IP4_Address{192, 168, 1, 0}
+	wildcard := netx.ip4_not(mask)
+	broadcast := netx.ip4_or(net_addr, wildcard)
+	fmt.printf("OR: %s | %s = %s\n", netx.addr_to_string4(net_addr), netx.addr_to_string4(wildcard), netx.addr_to_string4(broadcast))
+
+	original := net.IP4_Address{192, 168, 1, 1}
+	key := net.IP4_Address{0xDE, 0xAD, 0xBE, 0xEF}
+	encrypted := netx.ip4_xor(original, key)
+	decrypted := netx.ip4_xor(encrypted, key)
+	fmt.printf("XOR: %s ^ %s = %s (decrypt: %s)\n",
+	netx.addr_to_string4(original), netx.addr_to_string4(key),
+	netx.addr_to_string4(encrypted), netx.addr_to_string4(decrypted))
+
+	subnet_mask := net.IP4_Address{255, 255, 255, 0}
+	host_mask := netx.ip4_not(subnet_mask)
+	fmt.printf("NOT: ~%s = %s\n", netx.addr_to_string4(subnet_mask), netx.addr_to_string4(host_mask))
+
 	// ========================================================================
 	// IPv6 EXAMPLES
 	// ========================================================================
@@ -280,4 +304,28 @@ main :: proc() {
 	netx.network_to_string6(outside6),
 	netx.network_to_string6(parent6),
 	netx.is_subnet_of6(outside6, parent6))
+
+	fmt.println("\n--- IPv6: Bitwise Operations ---")
+
+	ipv6_addr := cast(net.IP6_Address)[8]u16be{0x2001, 0x0DB8, 0, 0, 0, 0, 0, 0x1234}
+	ipv6_mask := cast(net.IP6_Address)[8]u16be{0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0, 0, 0}
+	ipv6_network := netx.ip6_and(ipv6_addr, ipv6_mask)
+	fmt.printf("AND: %s & /64 = %s\n", netx.addr_to_string6(ipv6_addr), netx.addr_to_string6(ipv6_network))
+
+	ipv6_a := cast(net.IP6_Address)[8]u16be{0x2001, 0, 0, 0, 0, 0, 0, 0}
+	ipv6_b := cast(net.IP6_Address)[8]u16be{0, 0, 0, 0, 0, 0, 0, 0x0001}
+	ipv6_combined := netx.ip6_or(ipv6_a, ipv6_b)
+	fmt.printf("OR: %s | %s = %s\n", netx.addr_to_string6(ipv6_a), netx.addr_to_string6(ipv6_b), netx.addr_to_string6(ipv6_combined))
+
+	ipv6_original := cast(net.IP6_Address)[8]u16be{0x2001, 0x0DB8, 0, 0, 0, 0, 0, 0x0001}
+	ipv6_key := cast(net.IP6_Address)[8]u16be{0, 0, 0, 0, 0, 0, 0, 0xDEAD}
+	ipv6_encrypted := netx.ip6_xor(ipv6_original, ipv6_key)
+	ipv6_decrypted := netx.ip6_xor(ipv6_encrypted, ipv6_key)
+	fmt.printf("XOR: %s ^ %s = %s (decrypt: %s)\n",
+	netx.addr_to_string6(ipv6_original), netx.addr_to_string6(ipv6_key),
+	netx.addr_to_string6(ipv6_encrypted), netx.addr_to_string6(ipv6_decrypted))
+
+	ipv6_test := cast(net.IP6_Address)[8]u16be{0xFFFF, 0, 0, 0, 0, 0, 0, 0}
+	ipv6_inverted := netx.ip6_not(ipv6_test)
+	fmt.printf("NOT: ~%s = %s\n", netx.addr_to_string6(ipv6_test), netx.addr_to_string6(ipv6_inverted))
 }

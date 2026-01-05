@@ -645,6 +645,93 @@ less_network6 :: proc(a, b: IP6_Network) -> bool {
 }
 
 // ============================================================================
+// BITWISE OPERATIONS
+// ============================================================================
+
+ip4_and :: proc(a, b: net.IP4_Address) -> net.IP4_Address {
+	return net.IP4_Address{
+		a[0] & b[0],
+		a[1] & b[1],
+		a[2] & b[2],
+		a[3] & b[3],
+	}
+}
+
+ip4_or :: proc(a, b: net.IP4_Address) -> net.IP4_Address {
+	return net.IP4_Address{
+		a[0] | b[0],
+		a[1] | b[1],
+		a[2] | b[2],
+		a[3] | b[3],
+	}
+}
+
+ip4_xor :: proc(a, b: net.IP4_Address) -> net.IP4_Address {
+	return net.IP4_Address{
+		a[0] ~ b[0],
+		a[1] ~ b[1],
+		a[2] ~ b[2],
+		a[3] ~ b[3],
+	}
+}
+
+ip4_not :: proc(a: net.IP4_Address) -> net.IP4_Address {
+	return net.IP4_Address{
+		~a[0],
+		~a[1],
+		~a[2],
+		~a[3],
+	}
+}
+
+ip4_apply_mask :: proc(addr, mask: net.IP4_Address) -> net.IP4_Address {
+	return ip4_and(addr, mask)
+}
+
+ip6_and :: proc(a, b: net.IP6_Address) -> net.IP6_Address {
+	a_seg := cast([8]u16be)a
+	b_seg := cast([8]u16be)b
+	result_seg: [8]u16be
+	for i in 0..<8 {
+		result_seg[i] = a_seg[i] & b_seg[i]
+	}
+	return cast(net.IP6_Address)result_seg
+}
+
+ip6_or :: proc(a, b: net.IP6_Address) -> net.IP6_Address {
+	a_seg := cast([8]u16be)a
+	b_seg := cast([8]u16be)b
+	result_seg: [8]u16be
+	for i in 0..<8 {
+		result_seg[i] = a_seg[i] | b_seg[i]
+	}
+	return cast(net.IP6_Address)result_seg
+}
+
+ip6_xor :: proc(a, b: net.IP6_Address) -> net.IP6_Address {
+	a_seg := cast([8]u16be)a
+	b_seg := cast([8]u16be)b
+	result_seg: [8]u16be
+	for i in 0..<8 {
+		result_seg[i] = a_seg[i] ~ b_seg[i]
+	}
+	return cast(net.IP6_Address)result_seg
+}
+
+ip6_not :: proc(a: net.IP6_Address) -> net.IP6_Address {
+	a_seg := cast([8]u16be)a
+	result_seg: [8]u16be
+	for i in 0..<8 {
+		result_seg[i] = ~a_seg[i]
+	}
+	return cast(net.IP6_Address)result_seg
+}
+
+ip6_apply_mask :: proc(addr, mask: net.IP6_Address) -> net.IP6_Address {
+	return ip6_and(addr, mask)
+}
+
+// ============================================================================
 // NETWORK PREFIX OPERATIONS
 // ============================================================================
 

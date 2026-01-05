@@ -1045,6 +1045,210 @@ test_less_network6 :: proc(t: ^testing.T) {
 }
 
 // ============================================================================
+// BITWISE OPERATIONS TESTS
+// ============================================================================
+
+@(test)
+test_ip4_and :: proc(t: ^testing.T) {
+	a := net.IP4_Address{192, 168, 1, 130}
+	mask := net.IP4_Address{255, 255, 255, 128}
+	result := netx.ip4_and(a, mask)
+	expected := net.IP4_Address{192, 168, 1, 128}
+	testing.expect(t, result == expected, "ip4_and failed")
+}
+
+@(test)
+test_ip4_or :: proc(t: ^testing.T) {
+	network := net.IP4_Address{192, 168, 1, 0}
+	host_mask := net.IP4_Address{0, 0, 0, 255}
+	result := netx.ip4_or(network, host_mask)
+	expected := net.IP4_Address{192, 168, 1, 255}
+	testing.expect(t, result == expected, "ip4_or failed")
+}
+
+@(test)
+test_ip4_xor :: proc(t: ^testing.T) {
+	a := net.IP4_Address{192, 168, 1, 1}
+	b := net.IP4_Address{0, 0, 0, 255}
+	result := netx.ip4_xor(a, b)
+	expected := net.IP4_Address{192, 168, 1, 254}
+	testing.expect(t, result == expected, "ip4_xor failed")
+}
+
+@(test)
+test_ip4_xor_reversible :: proc(t: ^testing.T) {
+	original := net.IP4_Address{10, 20, 30, 40}
+	key := net.IP4_Address{0xDE, 0xAD, 0xBE, 0xEF}
+
+	encrypted := netx.ip4_xor(original, key)
+	decrypted := netx.ip4_xor(encrypted, key)
+
+	testing.expect(t, decrypted == original, "ip4_xor not reversible")
+}
+
+@(test)
+test_ip4_not :: proc(t: ^testing.T) {
+	mask := net.IP4_Address{255, 255, 255, 0}
+	result := netx.ip4_not(mask)
+	expected := net.IP4_Address{0, 0, 0, 255}
+	testing.expect(t, result == expected, "ip4_not failed")
+}
+
+@(test)
+test_ip4_not_double :: proc(t: ^testing.T) {
+	original := net.IP4_Address{192, 168, 1, 1}
+	result := netx.ip4_not(netx.ip4_not(original))
+	testing.expect(t, result == original, "double ip4_not should return original")
+}
+
+@(test)
+test_ip4_apply_mask :: proc(t: ^testing.T) {
+	addr := net.IP4_Address{192, 168, 1, 100}
+	mask := net.IP4_Address{255, 255, 255, 0}
+	result := netx.ip4_apply_mask(addr, mask)
+	expected := net.IP4_Address{192, 168, 1, 0}
+	testing.expect(t, result == expected, "ip4_apply_mask failed")
+}
+
+@(test)
+test_ip4_broadcast_calculation :: proc(t: ^testing.T) {
+	network := net.IP4_Address{192, 168, 1, 0}
+	mask := net.IP4_Address{255, 255, 255, 0}
+
+	host_mask := netx.ip4_not(mask)
+	broadcast := netx.ip4_or(network, host_mask)
+
+	expected := net.IP4_Address{192, 168, 1, 255}
+	testing.expect(t, broadcast == expected, "broadcast calculation failed")
+}
+
+@(test)
+test_ip6_and :: proc(t: ^testing.T) {
+	a: net.IP6_Address
+	a_seg := cast([8]u16be)a
+	a_seg[0] = 0x2001
+	a_seg[7] = 0xFFFF
+	a = cast(net.IP6_Address)a_seg
+
+	mask: net.IP6_Address
+	mask_seg := cast([8]u16be)mask
+	mask_seg[0] = 0xFFFF
+	mask = cast(net.IP6_Address)mask_seg
+
+	result := netx.ip6_and(a, mask)
+
+	result_seg := cast([8]u16be)result
+	testing.expect(t, u16(result_seg[0]) == 0x2001, "ip6_and failed on segment 0")
+	testing.expect(t, u16(result_seg[7]) == 0, "ip6_and failed on segment 7")
+}
+
+@(test)
+test_ip6_or :: proc(t: ^testing.T) {
+	a: net.IP6_Address
+	a_seg := cast([8]u16be)a
+	a_seg[0] = 0x2001
+	a = cast(net.IP6_Address)a_seg
+
+	b: net.IP6_Address
+	b_seg := cast([8]u16be)b
+	b_seg[7] = 0x0001
+	b = cast(net.IP6_Address)b_seg
+
+	result := netx.ip6_or(a, b)
+
+	result_seg := cast([8]u16be)result
+	testing.expect(t, u16(result_seg[0]) == 0x2001, "ip6_or failed on segment 0")
+	testing.expect(t, u16(result_seg[7]) == 0x0001, "ip6_or failed on segment 7")
+}
+
+@(test)
+test_ip6_xor :: proc(t: ^testing.T) {
+	a: net.IP6_Address
+	a_seg := cast([8]u16be)a
+	a_seg[0] = 0xFFFF
+	a = cast(net.IP6_Address)a_seg
+
+	b: net.IP6_Address
+	b_seg := cast([8]u16be)b
+	b_seg[0] = 0x00FF
+	b = cast(net.IP6_Address)b_seg
+
+	result := netx.ip6_xor(a, b)
+
+	result_seg := cast([8]u16be)result
+	testing.expect(t, u16(result_seg[0]) == 0xFF00, "ip6_xor failed")
+}
+
+@(test)
+test_ip6_xor_reversible :: proc(t: ^testing.T) {
+	original: net.IP6_Address
+	orig_seg := cast([8]u16be)original
+	orig_seg[0] = 0x2001
+	orig_seg[7] = 0x0001
+	original = cast(net.IP6_Address)orig_seg
+
+	key: net.IP6_Address
+	key_seg := cast([8]u16be)key
+	key_seg[7] = 0xDEAD
+	key = cast(net.IP6_Address)key_seg
+
+	encrypted := netx.ip6_xor(original, key)
+	decrypted := netx.ip6_xor(encrypted, key)
+
+	testing.expect(t, decrypted == original, "ip6_xor not reversible")
+}
+
+@(test)
+test_ip6_not :: proc(t: ^testing.T) {
+	addr: net.IP6_Address
+	addr_seg := cast([8]u16be)addr
+	addr_seg[0] = 0xFFFF
+	addr = cast(net.IP6_Address)addr_seg
+
+	result := netx.ip6_not(addr)
+
+	result_seg := cast([8]u16be)result
+	testing.expect(t, u16(result_seg[0]) == 0, "ip6_not failed on segment 0")
+	testing.expect(t, u16(result_seg[7]) == 0xFFFF, "ip6_not failed on segment 7")
+}
+
+@(test)
+test_ip6_not_double :: proc(t: ^testing.T) {
+	original: net.IP6_Address
+	orig_seg := cast([8]u16be)original
+	orig_seg[0] = 0x2001
+	orig_seg[7] = 0x0001
+	original = cast(net.IP6_Address)orig_seg
+
+	result := netx.ip6_not(netx.ip6_not(original))
+	testing.expect(t, result == original, "double ip6_not should return original")
+}
+
+@(test)
+test_ip6_apply_mask :: proc(t: ^testing.T) {
+	addr: net.IP6_Address
+	addr_seg := cast([8]u16be)addr
+	addr_seg[0] = 0x2001
+	addr_seg[1] = 0x0DB8
+	addr_seg[7] = 0x1234
+	addr = cast(net.IP6_Address)addr_seg
+
+	mask: net.IP6_Address
+	mask_seg := cast([8]u16be)mask
+	for i in 0..<4 {
+		mask_seg[i] = 0xFFFF
+	}
+	mask = cast(net.IP6_Address)mask_seg
+
+	result := netx.ip6_apply_mask(addr, mask)
+
+	result_seg := cast([8]u16be)result
+	testing.expect(t, u16(result_seg[0]) == 0x2001, "ip6_apply_mask failed on segment 0")
+	testing.expect(t, u16(result_seg[1]) == 0x0DB8, "ip6_apply_mask failed on segment 1")
+	testing.expect(t, u16(result_seg[7]) == 0, "ip6_apply_mask failed on segment 7")
+}
+
+// ============================================================================
 // NETWORK PREFIX OPERATION TESTS
 // ============================================================================
 

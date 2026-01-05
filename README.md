@@ -13,6 +13,7 @@ Inspired by Go's [`net/netip`](https://pkg.go.dev/net/netip) package, providing 
 - Network ranges and host counting
 - Subnet splitting and address iteration
 - Network prefix operations (next/previous network, parent network, subnet relationships)
+- Bitwise operations (AND, OR, XOR, NOT for custom masking and manipulation)
 - Full IPv4 and IPv6 support
 
 ### MAC Address Operations (`mac.odin`)
@@ -78,6 +79,11 @@ main :: proc() {
     // Navigate network space
     next, _ := netx.next_network4(network)
     fmt.println(netx.network_to_string4(next))  // 192.168.2.0/24
+
+    // Bitwise operations
+    mask := net.IP4_Address{255, 255, 255, 128}
+    broadcast := netx.ip4_or(network.address, netx.ip4_not(mask))
+    fmt.println(netx.addr_to_string4(broadcast))  // Custom broadcast calc
 
     // MAC address handling
     mac, _ := netx.parse_mac("00:1A:2B:3C:4D:5E")
