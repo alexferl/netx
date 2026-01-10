@@ -335,4 +335,82 @@ main :: proc() {
 	ipv6_test := cast(net.IP6_Address)segments_test
 	ipv6_inverted := netx.ip6_not(ipv6_test)
 	fmt.printf("NOT: ~%s = %s\n", netx.addr_to_string6(ipv6_test), netx.addr_to_string6(ipv6_inverted))
+
+	fmt.println("\n\n=== Address:Port Operations ===\n")
+
+	fmt.println("--- IPv4 Address:Port ---")
+	// Parse IPv4:port
+	addr_port4, ok4 := netx.parse_addr_port4("192.168.1.100:8080")
+	if ok4 {
+		fmt.printf("Parsed: %s\n", netx.addr_port_to_string4(addr_port4))
+		fmt.printf("  Address: %s\n", netx.addr_to_string4(addr_port4.addr))
+		fmt.printf("  Port: %d\n", addr_port4.port)
+	}
+
+	// Common service ports
+	http_server := netx.must_parse_addr_port4("0.0.0.0:80")
+	https_server := netx.must_parse_addr_port4("0.0.0.0:443")
+	fmt.printf("HTTP server: %s\n", netx.addr_port_to_string4(http_server))
+	fmt.printf("HTTPS server: %s\n", netx.addr_port_to_string4(https_server))
+
+	fmt.println("\n--- IPv6 Address:Port ---")
+	// Parse [IPv6]:port (note the brackets!)
+	addr_port6, ok_ap6 := netx.parse_addr_port6("[2001:db8::1]:8080")
+	if ok_ap6 {
+		fmt.printf("Parsed: %s\n", netx.addr_port_to_string6(addr_port6))
+		fmt.printf("  Address: %s\n", netx.addr_to_string6(addr_port6.addr))
+		fmt.printf("  Port: %d\n", addr_port6.port)
+	}
+
+	// IPv6 loopback with port
+	loopback_server := netx.must_parse_addr_port6("[::1]:3000")
+	fmt.printf("Loopback server: %s\n", netx.addr_port_to_string6(loopback_server))
+
+	fmt.println("\n\n=== IPv4-Mapped IPv6 Addresses ===\n")
+
+	fmt.println("--- Converting IPv4 to IPv4-Mapped IPv6 ---")
+	ipv4_addr := net.IP4_Address{192, 0, 2, 1}
+	mapped := netx.ipv4_to_ipv6_mapped(ipv4_addr)
+	fmt.printf("IPv4: %s\n", netx.addr_to_string4(ipv4_addr))
+	fmt.printf("IPv4-mapped IPv6: %s\n", netx.addr_to_string6(mapped))
+	fmt.printf("Is IPv4-mapped? %v\n", netx.is_ipv4_mapped6(mapped))
+
+	fmt.println("\n--- Extracting IPv4 from Mapped Address ---")
+	if extracted, ok_extract := netx.ipv6_to_ipv4_mapped(mapped); ok_extract {
+		fmt.printf("Extracted IPv4: %s\n", netx.addr_to_string4(extracted))
+		fmt.printf("Matches original? %v\n", extracted == ipv4_addr)
+	}
+
+	fmt.println("\n--- Dual-Stack Server Example ---")
+	// Simulating what you might see in network logs when IPv4 clients
+	// connect to an IPv6 socket
+	ipv4_clients := []net.IP4_Address{
+		{10, 0, 1, 100},
+		{192, 168, 1, 50},
+		{172, 16, 0, 25},
+	}
+
+	fmt.println("Connections from IPv4 clients (as seen by IPv6 socket):")
+	for client in ipv4_clients {
+		mapped_client := netx.ipv4_to_ipv6_mapped(client)
+		fmt.printf("  Client %s appears as %s\n",
+			netx.addr_to_string4(client),
+			netx.addr_to_string6(mapped_client))
+	}
+
+	fmt.println("\n--- Checking Various IPv6 Addresses ---")
+	test_addrs := []struct{addr: net.IP6_Address, name: string}{
+		{netx.ipv4_to_ipv6_mapped(net.IP4_Address{127, 0, 0, 1}), "Mapped loopback"},
+		{netx.ipv6_loopback(), "Native ::1"},
+		{netx.ipv6_unspecified(), "Unspecified ::"},
+		{netx.must_parse_cidr6("2001:db8::1/128").address, "Regular IPv6"},
+	}
+
+	for test in test_addrs {
+		is_mapped := netx.is_ipv4_mapped6(test.addr)
+		fmt.printf("%20s (%s): IPv4-mapped? %v\n",
+			test.name,
+			netx.addr_to_string6(test.addr),
+			is_mapped)
+	}
 }

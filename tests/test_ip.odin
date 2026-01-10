@@ -1,6 +1,7 @@
 package test_netx
 
 import "core:net"
+import "core:strings"
 import "core:testing"
 import netx "../"
 
@@ -170,6 +171,134 @@ test_network_to_string6 :: proc(t: ^testing.T) {
 	network := netx.IP6_Network{addr, 32}
 	str := netx.network_to_string6(network, context.temp_allocator)
 	testing.expect_value(t, str, "2001:db8::/32")
+}
+
+@(test)
+test_parse_addr_port4 :: proc(t: ^testing.T) {
+	// Valid address:port
+	ap1, ok1 := netx.parse_addr_port4("192.168.1.1:8080")
+	testing.expect(t, ok1, "Should parse valid IPv4:port")
+	testing.expect_value(t, ap1.addr, net.IP4_Address{192, 168, 1, 1})
+	testing.expect_value(t, ap1.port, u16(8080))
+
+	// Port 0
+	ap2, ok2 := netx.parse_addr_port4("10.0.0.1:0")
+	testing.expect(t, ok2, "Should parse port 0")
+	testing.expect_value(t, ap2.port, u16(0))
+
+	// Port 65535
+	ap3, ok3 := netx.parse_addr_port4("10.0.0.1:65535")
+	testing.expect(t, ok3, "Should parse port 65535")
+	testing.expect_value(t, ap3.port, u16(65535))
+
+	// Invalid: no port
+	_, ok4 := netx.parse_addr_port4("192.168.1.1")
+	testing.expect(t, !ok4, "Should fail without port")
+
+	// Invalid: port too large
+	_, ok5 := netx.parse_addr_port4("192.168.1.1:65536")
+	testing.expect(t, !ok5, "Should fail with port > 65535")
+
+	// Invalid: bad IP
+	_, ok6 := netx.parse_addr_port4("not.an.ip:8080")
+	testing.expect(t, !ok6, "Should fail with invalid IP")
+
+	// Invalid: bad port
+	_, ok7 := netx.parse_addr_port4("192.168.1.1:abc")
+	testing.expect(t, !ok7, "Should fail with non-numeric port")
+}
+
+@(test)
+test_parse_addr_port6 :: proc(t: ^testing.T) {
+	// Valid [address]:port
+	ap1, ok1 := netx.parse_addr_port6("[2001:db8::1]:8080")
+	testing.expect(t, ok1, "Should parse valid [IPv6]:port")
+	testing.expect_value(t, ap1.port, u16(8080))
+
+	// Loopback
+	ap2, ok2 := netx.parse_addr_port6("[::1]:443")
+	testing.expect(t, ok2, "Should parse [::1]:443")
+	testing.expect_value(t, ap2.addr, netx.ipv6_loopback())
+	testing.expect_value(t, ap2.port, u16(443))
+
+	// Port 0
+	ap3, ok3 := netx.parse_addr_port6("[::]:0")
+	testing.expect(t, ok3, "Should parse port 0")
+	testing.expect_value(t, ap3.port, u16(0))
+
+	// Invalid: missing brackets
+	_, ok4 := netx.parse_addr_port6("2001:db8::1:8080")
+	testing.expect(t, !ok4, "Should fail without brackets")
+
+	// Invalid: missing closing bracket
+	_, ok5 := netx.parse_addr_port6("[2001:db8::1:8080")
+	testing.expect(t, !ok5, "Should fail without closing bracket")
+
+	// Invalid: no port after bracket
+	_, ok6 := netx.parse_addr_port6("[2001:db8::1]")
+	testing.expect(t, !ok6, "Should fail without port")
+
+	// Invalid: bad port
+	_, ok7 := netx.parse_addr_port6("[::1]:99999")
+	testing.expect(t, !ok7, "Should fail with port > 65535")
+}
+
+@(test)
+test_addr_port_to_string4 :: proc(t: ^testing.T) {
+	ap := netx.IP4_Addr_Port{net.IP4_Address{192, 168, 1, 1}, 8080}
+	str := netx.addr_port_to_string4(ap, context.temp_allocator)
+	testing.expect_value(t, str, "192.168.1.1:8080")
+
+	// Port 0
+	ap0 := netx.IP4_Addr_Port{net.IP4_Address{10, 0, 0, 1}, 0}
+	str0 := netx.addr_port_to_string4(ap0, context.temp_allocator)
+	testing.expect_value(t, str0, "10.0.0.1:0")
+}
+
+@(test)
+test_addr_port_to_string6 :: proc(t: ^testing.T) {
+	ap := netx.IP6_Addr_Port{netx.ipv6_loopback(), 443}
+	str := netx.addr_port_to_string6(ap, context.temp_allocator)
+	testing.expect_value(t, str, "[::1]:443")
+
+	// Unspecified with port
+	ap0 := netx.IP6_Addr_Port{netx.ipv6_unspecified(), 8080}
+	str0 := netx.addr_port_to_string6(ap0, context.temp_allocator)
+	testing.expect_value(t, str0, "[::]:8080")
+}
+
+@(test)
+test_addr_port_roundtrip4 :: proc(t: ^testing.T) {
+	original := "192.168.1.100:3000"
+	ap, ok := netx.parse_addr_port4(original)
+	testing.expect(t, ok, "Should parse")
+
+	str := netx.addr_port_to_string4(ap, context.temp_allocator)
+	testing.expect_value(t, str, original)
+}
+
+@(test)
+test_addr_port_roundtrip6 :: proc(t: ^testing.T) {
+	original := "[2001:db8::1]:8080"
+	ap, ok := netx.parse_addr_port6(original)
+	testing.expect(t, ok, "Should parse")
+
+	str := netx.addr_port_to_string6(ap, context.temp_allocator)
+	testing.expect_value(t, str, original)
+}
+
+@(test)
+test_must_parse_addr_port4 :: proc(t: ^testing.T) {
+	ap := netx.must_parse_addr_port4("127.0.0.1:8080")
+	testing.expect_value(t, ap.addr, net.IP4_Address{127, 0, 0, 1})
+	testing.expect_value(t, ap.port, u16(8080))
+}
+
+@(test)
+test_must_parse_addr_port6 :: proc(t: ^testing.T) {
+	ap := netx.must_parse_addr_port6("[::1]:443")
+	testing.expect_value(t, ap.addr, netx.ipv6_loopback())
+	testing.expect_value(t, ap.port, u16(443))
 }
 
 @(test)
@@ -1984,4 +2113,107 @@ test_u128_to_addr6 :: proc(t: ^testing.T) {
 	// Test zero
 	zero := netx.u128_to_addr6(0)
 	testing.expect_value(t, zero, netx.ipv6_unspecified())
+}
+
+@(test)
+test_ipv4_to_ipv6_mapped :: proc(t: ^testing.T) {
+	// Convert 192.0.2.1 to ::ffff:192.0.2.1
+	ipv4 := net.IP4_Address{192, 0, 2, 1}
+	ipv6 := netx.ipv4_to_ipv6_mapped(ipv4)
+
+	// Check format: ::ffff:c000:0201
+	segments := cast([8]u16be)ipv6
+	testing.expect_value(t, u16(segments[0]), u16(0))
+	testing.expect_value(t, u16(segments[1]), u16(0))
+	testing.expect_value(t, u16(segments[2]), u16(0))
+	testing.expect_value(t, u16(segments[3]), u16(0))
+	testing.expect_value(t, u16(segments[4]), u16(0))
+	testing.expect_value(t, u16(segments[5]), u16(0xFFFF))
+	testing.expect_value(t, u16(segments[6]), u16(0xC000))  // 192.0
+	testing.expect_value(t, u16(segments[7]), u16(0x0201))  // 2.1
+
+	// Verify it's recognized as IPv4-mapped
+	testing.expect(t, netx.is_ipv4_mapped6(ipv6), "Should be recognized as IPv4-mapped")
+}
+
+@(test)
+test_ipv6_to_ipv4_mapped :: proc(t: ^testing.T) {
+	// Create ::ffff:192.0.2.1
+	ipv4_original := net.IP4_Address{192, 0, 2, 1}
+	ipv6 := netx.ipv4_to_ipv6_mapped(ipv4_original)
+
+	// Convert back
+	ipv4_result, ok := netx.ipv6_to_ipv4_mapped(ipv6)
+	testing.expect(t, ok, "Should successfully extract IPv4")
+	testing.expect_value(t, ipv4_result, ipv4_original)
+}
+
+@(test)
+test_is_ipv4_mapped6 :: proc(t: ^testing.T) {
+	// Valid IPv4-mapped
+	mapped := netx.ipv4_to_ipv6_mapped(net.IP4_Address{10, 0, 0, 1})
+	testing.expect(t, netx.is_ipv4_mapped6(mapped), "Should be IPv4-mapped")
+
+	// Not IPv4-mapped: regular IPv6
+	segments_regular: [8]u16be
+	segments_regular[0] = 0x2001
+	segments_regular[1] = 0x0db8
+	regular := cast(net.IP6_Address)segments_regular
+	testing.expect(t, !netx.is_ipv4_mapped6(regular), "Regular IPv6 should not be IPv4-mapped")
+
+	// Not IPv4-mapped: ::1
+	loopback := netx.ipv6_loopback()
+	testing.expect(t, !netx.is_ipv4_mapped6(loopback), "::1 should not be IPv4-mapped")
+
+	// Not IPv4-mapped: wrong ffff position (segment 4 instead of 5)
+	segments_wrong: [8]u16be
+	segments_wrong[4] = 0xFFFF
+	wrong := cast(net.IP6_Address)segments_wrong
+	testing.expect(t, !netx.is_ipv4_mapped6(wrong), "Wrong ffff position should not be IPv4-mapped")
+}
+
+@(test)
+test_ipv4_mapped_roundtrip :: proc(t: ^testing.T) {
+	// Test various addresses
+	test_addrs := []net.IP4_Address{
+		{0, 0, 0, 0},
+		{127, 0, 0, 1},
+		{192, 168, 1, 1},
+		{255, 255, 255, 255},
+		{10, 20, 30, 40},
+	}
+
+	for addr in test_addrs {
+		mapped := netx.ipv4_to_ipv6_mapped(addr)
+		result, ok := netx.ipv6_to_ipv4_mapped(mapped)
+		testing.expect(t, ok, "Should extract IPv4")
+		testing.expect_value(t, result, addr)
+	}
+}
+
+@(test)
+test_ipv6_to_ipv4_mapped_invalid :: proc(t: ^testing.T) {
+	// Regular IPv6 should fail
+	segments: [8]u16be
+	segments[0] = 0x2001
+	segments[1] = 0x0db8
+	regular := cast(net.IP6_Address)segments
+	_, ok := netx.ipv6_to_ipv4_mapped(regular)
+	testing.expect(t, !ok, "Should fail for regular IPv6")
+
+	// ::1 should fail
+	_, ok2 := netx.ipv6_to_ipv4_mapped(netx.ipv6_loopback())
+	testing.expect(t, !ok2, "Should fail for ::1")
+}
+
+@(test)
+test_ipv4_mapped_string_representation :: proc(t: ^testing.T) {
+	// 192.0.2.1 -> ::ffff:192.0.2.1
+	ipv4 := net.IP4_Address{192, 0, 2, 1}
+	ipv6 := netx.ipv4_to_ipv6_mapped(ipv4)
+	str := netx.addr_to_string6(ipv6, context.temp_allocator)
+
+	// The string should contain "ffff" and represent the mapping
+	// Common representations: ::ffff:192.0.2.1 or ::ffff:c000:201
+	testing.expect(t, strings.contains(str, "ffff"), "String should contain 'ffff'")
 }

@@ -14,6 +14,13 @@ Inspired by Go's [`net/netip`](https://pkg.go.dev/net/netip) package, providing 
   - Network and usable host ranges
   - Range containment and overlap checking
   - Range size calculation and string formatting
+- **Address:Port types** (`IP4_Addr_Port`/`IP6_Addr_Port`): Combined address and port handling
+  - Parse and format address:port strings (`192.168.1.1:8080`, `[::1]:443`)
+  - Essential for network service configuration
+- **IPv4-Mapped IPv6**: Convert between IPv4 and IPv6 address spaces
+  - Embed IPv4 addresses in IPv6 format (`::ffff:192.0.2.1`)
+  - Extract IPv4 from mapped IPv6 addresses
+  - Detect and handle dual-stack scenarios
 - Subnet splitting and address iteration
 - Network prefix operations (next/previous network, parent network, subnet relationships)
 - Bitwise operations (AND, OR, XOR, NOT for custom masking and manipulation)
@@ -83,6 +90,17 @@ main :: proc() {
     range := netx.network_range4(network)
     fmt.println(netx.range_to_string4(range))   // 192.168.1.0-192.168.1.255
     fmt.println(netx.range_contains4(range, addr))  // true
+
+    // Address:port handling
+    server, _ := netx.parse_addr_port4("192.168.1.1:8080")
+    fmt.println(server.port)  // 8080
+    fmt.println(netx.addr_port_to_string4(server))  // 192.168.1.1:8080
+
+    // IPv4-mapped IPv6 (dual-stack)
+    ipv4 := net.IP4_Address{192, 0, 2, 1}
+    mapped := netx.ipv4_to_ipv6_mapped(ipv4)
+    fmt.println(netx.addr_to_string6(mapped))  // ::ffff:c000:201
+    fmt.println(netx.is_ipv4_mapped6(mapped))  // true
 
     // Navigate network space
     next, _ := netx.next_network4(network)

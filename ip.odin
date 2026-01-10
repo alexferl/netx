@@ -25,6 +25,16 @@ IP6_Range :: struct {
 	end: net.IP6_Address,
 }
 
+IP4_Addr_Port :: struct {
+	addr: net.IP4_Address,
+	port: u16,
+}
+
+IP6_Addr_Port :: struct {
+	addr: net.IP6_Address,
+	port: u16,
+}
+
 // ============================================================================
 // PARSING AND FORMATTING
 // ============================================================================
@@ -152,6 +162,91 @@ network_to_string4 :: proc(network: IP4_Network, allocator := context.allocator)
 network_to_string6 :: proc(network: IP6_Network, allocator := context.allocator) -> string {
 	addr_str := addr_to_string6(network.address, context.temp_allocator)
 	return fmt.aprintf("%s/%d", addr_str, network.prefix_len, allocator = allocator)
+}
+
+parse_addr_port4 :: proc(s: string) -> (addr_port: IP4_Addr_Port, ok: bool) {
+	// Format: "192.168.1.1:8080"
+	colon_idx := strings.last_index(s, ":")
+	if colon_idx == -1 {
+		return {}, false
+	}
+
+	addr_str := s[:colon_idx]
+	port_str := s[colon_idx+1:]
+
+	addr, addr_ok := net.parse_ip4_address(addr_str)
+	if !addr_ok {
+		return {}, false
+	}
+
+	port, port_ok := strconv.parse_u64(port_str)
+	if !port_ok || port > 65535 {
+		return {}, false
+	}
+
+	addr_port.addr = addr
+	addr_port.port = u16(port)
+	return addr_port, true
+}
+
+parse_addr_port6 :: proc(s: string) -> (addr_port: IP6_Addr_Port, ok: bool) {
+	// Format: "[2001:db8::1]:8080"
+	if !strings.has_prefix(s, "[") {
+		return {}, false
+	}
+
+	bracket_end := strings.index(s, "]")
+	if bracket_end == -1 {
+		return {}, false
+	}
+
+	addr_str := s[1:bracket_end]
+
+	if bracket_end + 1 >= len(s) || s[bracket_end+1] != ':' {
+		return {}, false
+	}
+
+	port_str := s[bracket_end+2:]
+
+	addr, addr_ok := net.parse_ip6_address(addr_str)
+	if !addr_ok {
+		return {}, false
+	}
+
+	port, port_ok := strconv.parse_u64(port_str)
+	if !port_ok || port > 65535 {
+		return {}, false
+	}
+
+	addr_port.addr = addr
+	addr_port.port = u16(port)
+	return addr_port, true
+}
+
+addr_port_to_string4 :: proc(addr_port: IP4_Addr_Port, allocator := context.allocator) -> string {
+	addr_str := addr_to_string4(addr_port.addr, context.temp_allocator)
+	return fmt.aprintf("%s:%d", addr_str, addr_port.port, allocator = allocator)
+}
+
+addr_port_to_string6 :: proc(addr_port: IP6_Addr_Port, allocator := context.allocator) -> string {
+	addr_str := addr_to_string6(addr_port.addr, context.temp_allocator)
+	return fmt.aprintf("[%s]:%d", addr_str, addr_port.port, allocator = allocator)
+}
+
+must_parse_addr_port4 :: proc(s: string, loc := #caller_location) -> IP4_Addr_Port {
+	addr_port, ok := parse_addr_port4(s)
+	if !ok {
+		panic("Failed to parse IPv4 address:port", loc)
+	}
+	return addr_port
+}
+
+must_parse_addr_port6 :: proc(s: string, loc := #caller_location) -> IP6_Addr_Port {
+	addr_port, ok := parse_addr_port6(s)
+	if !ok {
+		panic("Failed to parse IPv6 address:port", loc)
+	}
+	return addr_port
 }
 
 masked4 :: proc(network: IP4_Network) -> IP4_Network {
@@ -1139,4 +1234,44 @@ u128_to_addr6 :: proc(val: u128) -> net.IP6_Address {
 		temp >>= 16
 	}
 	return cast(net.IP6_Address)segments
+}
+
+// IPv4-mapped IPv6 address: ::ffff:a.b.c.d
+// Format: first 80 bits are 0, next 16 bits are 0xffff, last 32 bits are the IPv4 address
+ipv4_to_ipv6_mapped :: proc(addr: net.IP4_Address) -> net.IP6_Address {
+	bytes := cast([4]u8)addr
+	segments: [8]u16be
+	// First 80 bits (segments 0-4) are zero (already initialized)
+	segments[5] = 0xFFFF  // Next 16 bits are all ones
+	// Last 32 bits are the IPv4 address
+	segments[6] = u16be((u16(bytes[0]) << 8) | u16(bytes[1]))
+	segments[7] = u16be((u16(bytes[2]) << 8) | u16(bytes[3]))
+	return cast(net.IP6_Address)segments
+}
+
+ipv6_to_ipv4_mapped :: proc(addr: net.IP6_Address) -> (ipv4: net.IP4_Address, ok: bool) {
+	if !is_ipv4_mapped6(addr) {
+		return {}, false
+	}
+
+	segments := cast([8]u16be)addr
+	bytes: [4]u8
+	bytes[0] = u8(u16(segments[6]) >> 8)
+	bytes[1] = u8(u16(segments[6]) & 0xFF)
+	bytes[2] = u8(u16(segments[7]) >> 8)
+	bytes[3] = u8(u16(segments[7]) & 0xFF)
+
+	return cast(net.IP4_Address)bytes, true
+}
+
+is_ipv4_mapped6 :: proc(addr: net.IP6_Address) -> bool {
+	segments := cast([8]u16be)addr
+	// Check first 80 bits are zero
+	for i in 0..<5 {
+		if segments[i] != 0 {
+			return false
+		}
+	}
+	// Check next 16 bits are 0xFFFF
+	return u16(segments[5]) == 0xFFFF
 }
