@@ -1,6 +1,7 @@
 package netx
 
 import "core:fmt"
+import "core:math/rand"
 import "core:net"
 import "core:strconv"
 import "core:strings"
@@ -1274,4 +1275,56 @@ is_ipv4_mapped6 :: proc(addr: net.IP6_Address) -> bool {
 	}
 	// Check next 16 bits are 0xFFFF
 	return u16(segments[5]) == 0xFFFF
+}
+
+// ============================================================================
+// RANDOM IP GENERATION
+// ============================================================================
+
+random_ip4_in_network :: proc(network: IP4_Network) -> net.IP4_Address {
+	// Get the range of addresses in the network
+	range := network_range4(network)
+
+	// Convert to u32 for arithmetic
+	start := addr4_to_u32(range.start)
+	end := addr4_to_u32(range.end)
+
+	// Generate random value in range [start, end]
+	random_val := start + u32(rand.uint64() % u64(end - start + 1))
+
+	return u32_to_addr4(random_val)
+}
+
+random_ip6_in_network :: proc(network: IP6_Network) -> net.IP6_Address {
+	// Get the range of addresses in the network
+	range := network_range6(network)
+
+	// Convert to u128 for arithmetic
+	start := addr6_to_u128(range.start)
+	end := addr6_to_u128(range.end)
+
+	// For large ranges, generate random u128
+	// Use two u64 values to create u128
+	range_size := end - start
+
+	// Generate random value in range
+	random_val: u128
+	if range_size <= u128(max(u64)) {
+		// Small enough to fit in u64
+		random_val = start + u128(rand.uint64() % u64(range_size + 1))
+	} else {
+		// Large range, generate full u128
+		// Generate two random u64s
+		high := u128(rand.uint64())
+		low := u128(rand.uint64())
+		random_offset := (high << 64) | low
+
+		// Modulo to fit in range (not perfectly uniform for huge ranges, but good enough)
+		if range_size > 0 {
+			random_offset = random_offset % (range_size + 1)
+		}
+		random_val = start + random_offset
+	}
+
+	return u128_to_addr6(random_val)
 }

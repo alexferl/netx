@@ -17,6 +17,17 @@ main :: proc() {
 	fmt.println(netx.range_to_string4(range))   // 192.168.1.0-192.168.1.255
 	fmt.println(netx.range_contains4(range, addr))  // true
 
+	// Address:port handling
+	server, _ := netx.parse_addr_port4("192.168.1.1:8080")
+	fmt.println(server.port)  // 8080
+	fmt.println(netx.addr_port_to_string4(server))  // 192.168.1.1:8080
+
+	// IPv4-mapped IPv6 (dual-stack)
+	ipv4 := net.IP4_Address{192, 0, 2, 1}
+	mapped := netx.ipv4_to_ipv6_mapped(ipv4)
+	fmt.println(netx.addr_to_string6(mapped))  // ::ffff:c000:201
+	fmt.println(netx.is_ipv4_mapped6(mapped))  // true
+
 	// Navigate network space
 	next, _ := netx.next_network4(network)
 	fmt.println(netx.network_to_string4(next))  // 192.168.2.0/24
@@ -40,4 +51,34 @@ main :: proc() {
 	used := []netx.IP4_Network{netx.must_parse_cidr4("10.0.1.0/24")}
 	free := netx.find_free_subnets4(parent, used, 24)
 	fmt.println(len(free))  // 255 available /24 subnets
+
+	// VLSM: Split network optimally for different department sizes
+	company := netx.must_parse_cidr4("192.168.0.0/24")
+	requirements := []netx.VLSM_Requirement{
+		{hosts = 100, name = "Engineering"},
+		{hosts = 50, name = "Sales"},
+		{hosts = 20, name = "HR"},
+	}
+	vlsm_subnets, vlsm_ok := netx.split_network_vlsm4(company, requirements)
+	if vlsm_ok {
+		fmt.println(netx.network_to_string4(vlsm_subnets[0]))  // 192.168.0.0/25
+	}
+
+	// IP Sets: Fast prefix matching with radix trees
+	set := netx.set_init4()
+	defer netx.set_destroy4(&set)
+
+	netx.set_insert4(&set, netx.must_parse_cidr4("10.0.0.0/8"))
+	netx.set_insert4(&set, netx.must_parse_cidr4("192.168.0.0/16"))
+
+	fmt.println(netx.set_contains4(&set, net.IP4_Address{10, 1, 2, 3}))  // true
+
+	// Longest prefix match (like routing table lookup)
+	match, _ := netx.set_longest_match4(&set, net.IP4_Address{10, 5, 5, 5})
+	fmt.println(netx.network_to_string4(match))  // 10.0.0.0/8
+
+	// Random IP generation for testing or load balancing
+	test_net := netx.must_parse_cidr4("192.0.2.0/24")  // TEST-NET-1
+	random_ip := netx.random_ip4_in_network(test_net)
+	fmt.println(netx.addr_to_string4(random_ip))  // Random IP in 192.0.2.0/24
 }

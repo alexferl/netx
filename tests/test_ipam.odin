@@ -432,6 +432,22 @@ test_pool4_init :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_pool6_init :: proc(t: ^testing.T) {
+	segments: [8]u16be
+	segments[0] = 0x2001
+	segments[1] = 0x0db8
+	addr := cast(net.IP6_Address)segments
+	network := netx.IP6_Network{addr, 64}
+
+	pool := netx.pool6_init(network, context.temp_allocator)
+	defer netx.pool6_destroy(&pool)
+
+	testing.expect_value(t, pool.network, network)
+	testing.expect_value(t, len(pool.allocated), 0)
+	testing.expect(t, !netx.is_unspecified6(pool.next_candidate), "next_candidate should not be ::")
+}
+
+@(test)
 test_pool4_allocate :: proc(t: ^testing.T) {
 	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
 	pool := netx.pool4_init(network, context.temp_allocator)
@@ -450,6 +466,27 @@ test_pool4_allocate :: proc(t: ^testing.T) {
 	// Check they're marked as allocated
 	testing.expect(t, netx.pool4_is_allocated(&pool, addr1), "addr1 should be allocated")
 	testing.expect(t, netx.pool4_is_allocated(&pool, addr2), "addr2 should be allocated")
+}
+
+@(test)
+test_pool6_allocate :: proc(t: ^testing.T) {
+	segments: [8]u16be
+	segments[0] = 0x2001
+	segments[1] = 0x0db8
+	addr := cast(net.IP6_Address)segments
+	network := netx.IP6_Network{addr, 120}  // Small network for testing
+
+	pool := netx.pool6_init(network, context.temp_allocator)
+	defer netx.pool6_destroy(&pool)
+
+	addr1, ok1 := netx.pool6_allocate(&pool)
+	testing.expect(t, ok1, "Should allocate first IPv6 address")
+
+	addr2, ok2 := netx.pool6_allocate(&pool)
+	testing.expect(t, ok2, "Should allocate second IPv6 address")
+
+	// Addresses should be different
+	testing.expect(t, addr1 != addr2, "Allocated addresses should be different")
 }
 
 @(test)
@@ -476,116 +513,6 @@ test_pool4_free :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_pool4_available :: proc(t: ^testing.T) {
-	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}  // 254 usable
-	pool := netx.pool4_init(network, context.temp_allocator)
-	defer netx.pool4_destroy(&pool)
-
-	initial := netx.pool4_available(&pool)
-	testing.expect_value(t, initial, 254)
-
-	netx.pool4_allocate(&pool)
-	after_alloc := netx.pool4_available(&pool)
-	testing.expect_value(t, after_alloc, 253)
-}
-
-@(test)
-test_pool4_free_unallocated :: proc(t: ^testing.T) {
-	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
-	pool := netx.pool4_init(network, context.temp_allocator)
-	defer netx.pool4_destroy(&pool)
-
-	// Try to free an address that was never allocated
-	addr := net.IP4_Address{192, 168, 1, 100}
-	freed := netx.pool4_free(&pool, addr)
-	testing.expect(t, !freed, "Should not free unallocated address")
-}
-
-@(test)
-test_pool4_exhaustion :: proc(t: ^testing.T) {
-	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 30}  // Only 2 usable hosts
-	pool := netx.pool4_init(network, context.temp_allocator)
-	defer netx.pool4_destroy(&pool)
-
-	// Allocate all available addresses
-	_, ok1 := netx.pool4_allocate(&pool)
-	testing.expect(t, ok1, "Should allocate first address")
-
-	_, ok2 := netx.pool4_allocate(&pool)
-	testing.expect(t, ok2, "Should allocate second address")
-
-	// Try to allocate when pool is exhausted
-	_, ok3 := netx.pool4_allocate(&pool)
-	testing.expect(t, !ok3, "Should fail when pool is exhausted")
-
-	// Verify available count is 0
-	testing.expect_value(t, netx.pool4_available(&pool), 0)
-}
-
-@(test)
-test_pool4_reuse_after_free :: proc(t: ^testing.T) {
-	network := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 28}
-	pool := netx.pool4_init(network, context.temp_allocator)
-	defer netx.pool4_destroy(&pool)
-
-	addr1, _ := netx.pool4_allocate(&pool)
-	addr2, _ := netx.pool4_allocate(&pool)
-	addr3, _ := netx.pool4_allocate(&pool)
-
-	// Free the middle address
-	netx.pool4_free(&pool, addr2)
-	testing.expect(t, !netx.pool4_is_allocated(&pool, addr2), "addr2 should not be allocated")
-	testing.expect(t, netx.pool4_is_allocated(&pool, addr1), "addr1 should still be allocated")
-	testing.expect(t, netx.pool4_is_allocated(&pool, addr3), "addr3 should still be allocated")
-
-	// Allocate again - should eventually reuse freed address
-	for i := 0; i < 20; i += 1 {
-		new_addr, ok := netx.pool4_allocate(&pool)
-		if ok && new_addr == addr2 {
-			testing.expect(t, true, "Freed address was reused")
-			return
-		}
-	}
-}
-
-@(test)
-test_pool6_init :: proc(t: ^testing.T) {
-	segments: [8]u16be
-	segments[0] = 0x2001
-	segments[1] = 0x0db8
-	addr := cast(net.IP6_Address)segments
-	network := netx.IP6_Network{addr, 64}
-
-	pool := netx.pool6_init(network, context.temp_allocator)
-	defer netx.pool6_destroy(&pool)
-
-	testing.expect_value(t, pool.network, network)
-	testing.expect_value(t, len(pool.allocated), 0)
-	testing.expect(t, !netx.is_unspecified6(pool.next_candidate), "next_candidate should not be ::")
-}
-
-@(test)
-test_pool6_allocate :: proc(t: ^testing.T) {
-	segments: [8]u16be
-	segments[0] = 0x2001
-	segments[1] = 0x0db8
-	addr := cast(net.IP6_Address)segments
-	network := netx.IP6_Network{addr, 120}  // Small network for testing
-
-	pool := netx.pool6_init(network, context.temp_allocator)
-	defer netx.pool6_destroy(&pool)
-
-	addr1, ok1 := netx.pool6_allocate(&pool)
-	testing.expect(t, ok1, "Should allocate first IPv6 address")
-
-	addr2, ok2 := netx.pool6_allocate(&pool)
-	testing.expect(t, ok2, "Should allocate second IPv6 address")
-
-	// Addresses should be different
-	testing.expect(t, addr1 != addr2, "Allocated addresses should be different")
-}
-
-@(test)
 test_pool6_free :: proc(t: ^testing.T) {
 	segments: [8]u16be
 	segments[0] = 0x2001
@@ -603,6 +530,51 @@ test_pool6_free :: proc(t: ^testing.T) {
 	freed := netx.pool6_free(&pool, addr1)
 	testing.expect(t, freed, "Should free allocated address")
 	testing.expect(t, !netx.pool6_is_allocated(&pool, addr1), "Address should not be allocated after free")
+}
+
+@(test)
+test_pool4_available :: proc(t: ^testing.T) {
+	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}  // 254 usable
+	pool := netx.pool4_init(network, context.temp_allocator)
+	defer netx.pool4_destroy(&pool)
+
+	initial := netx.pool4_available(&pool)
+	testing.expect_value(t, initial, 254)
+
+	netx.pool4_allocate(&pool)
+	after_alloc := netx.pool4_available(&pool)
+	testing.expect_value(t, after_alloc, 253)
+}
+
+@(test)
+test_pool6_available :: proc(t: ^testing.T) {
+	segments: [8]u16be
+	segments[0] = 0x2001
+	segments[1] = 0x0db8
+	addr := cast(net.IP6_Address)segments
+	network := netx.IP6_Network{addr, 126}  // 4 addresses
+
+	pool := netx.pool6_init(network, context.temp_allocator)
+	defer netx.pool6_destroy(&pool)
+
+	initial := netx.pool6_available(&pool)
+	testing.expect_value(t, initial, 4)
+
+	netx.pool6_allocate(&pool)
+	after_alloc := netx.pool6_available(&pool)
+	testing.expect_value(t, after_alloc, 3)
+}
+
+@(test)
+test_pool4_free_unallocated :: proc(t: ^testing.T) {
+	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
+	pool := netx.pool4_init(network, context.temp_allocator)
+	defer netx.pool4_destroy(&pool)
+
+	// Try to free an address that was never allocated
+	addr := net.IP4_Address{192, 168, 1, 100}
+	freed := netx.pool4_free(&pool, addr)
+	testing.expect(t, !freed, "Should not free unallocated address")
 }
 
 @(test)
@@ -628,22 +600,24 @@ test_pool6_free_unallocated :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_pool6_available :: proc(t: ^testing.T) {
-	segments: [8]u16be
-	segments[0] = 0x2001
-	segments[1] = 0x0db8
-	addr := cast(net.IP6_Address)segments
-	network := netx.IP6_Network{addr, 126}  // 4 addresses
+test_pool4_exhaustion :: proc(t: ^testing.T) {
+	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 30}  // Only 2 usable hosts
+	pool := netx.pool4_init(network, context.temp_allocator)
+	defer netx.pool4_destroy(&pool)
 
-	pool := netx.pool6_init(network, context.temp_allocator)
-	defer netx.pool6_destroy(&pool)
+	// Allocate all available addresses
+	_, ok1 := netx.pool4_allocate(&pool)
+	testing.expect(t, ok1, "Should allocate first address")
 
-	initial := netx.pool6_available(&pool)
-	testing.expect_value(t, initial, 4)
+	_, ok2 := netx.pool4_allocate(&pool)
+	testing.expect(t, ok2, "Should allocate second address")
 
-	netx.pool6_allocate(&pool)
-	after_alloc := netx.pool6_available(&pool)
-	testing.expect_value(t, after_alloc, 3)
+	// Try to allocate when pool is exhausted
+	_, ok3 := netx.pool4_allocate(&pool)
+	testing.expect(t, !ok3, "Should fail when pool is exhausted")
+
+	// Verify available count is 0
+	testing.expect_value(t, netx.pool4_available(&pool), 0)
 }
 
 @(test)
@@ -673,19 +647,29 @@ test_pool6_exhaustion :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_pool6_large_network_available :: proc(t: ^testing.T) {
-	segments: [8]u16be
-	segments[0] = 0x2001
-	segments[1] = 0x0db8
-	addr := cast(net.IP6_Address)segments
-	network := netx.IP6_Network{addr, 64}  // Very large network
+test_pool4_reuse_after_free :: proc(t: ^testing.T) {
+	network := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 28}
+	pool := netx.pool4_init(network, context.temp_allocator)
+	defer netx.pool4_destroy(&pool)
 
-	pool := netx.pool6_init(network, context.temp_allocator)
-	defer netx.pool6_destroy(&pool)
+	addr1, _ := netx.pool4_allocate(&pool)
+	addr2, _ := netx.pool4_allocate(&pool)
+	addr3, _ := netx.pool4_allocate(&pool)
 
-	// For large networks, available should return max(int)
-	available := netx.pool6_available(&pool)
-	testing.expect(t, available == max(int), "Large network should report max(int) available")
+	// Free the middle address
+	netx.pool4_free(&pool, addr2)
+	testing.expect(t, !netx.pool4_is_allocated(&pool, addr2), "addr2 should not be allocated")
+	testing.expect(t, netx.pool4_is_allocated(&pool, addr1), "addr1 should still be allocated")
+	testing.expect(t, netx.pool4_is_allocated(&pool, addr3), "addr3 should still be allocated")
+
+	// Allocate again - should eventually reuse freed address
+	for i := 0; i < 20; i += 1 {
+		new_addr, ok := netx.pool4_allocate(&pool)
+		if ok && new_addr == addr2 {
+			testing.expect(t, true, "Freed address was reused")
+			return
+		}
+	}
 }
 
 @(test)
@@ -717,6 +701,22 @@ test_pool6_reuse_after_free :: proc(t: ^testing.T) {
 			return
 		}
 	}
+}
+
+@(test)
+test_pool6_large_network_available :: proc(t: ^testing.T) {
+	segments: [8]u16be
+	segments[0] = 0x2001
+	segments[1] = 0x0db8
+	addr := cast(net.IP6_Address)segments
+	network := netx.IP6_Network{addr, 64}  // Very large network
+
+	pool := netx.pool6_init(network, context.temp_allocator)
+	defer netx.pool6_destroy(&pool)
+
+	// For large networks, available should return max(int)
+	available := netx.pool6_available(&pool)
+	testing.expect(t, available == max(int), "Large network should report max(int) available")
 }
 
 // ============================================================================
@@ -910,16 +910,15 @@ test_find_free_subnets4 :: proc(t: ^testing.T) {
 
 @(test)
 test_find_free_subnets6 :: proc(t: ^testing.T) {
-	// Parent: 2001:db8::/32
-	parent := netx.must_parse_cidr6("2001:db8::/32")
+	// Parent: 2001:db8::/44 - use smaller range for reasonable test time
+	parent := netx.must_parse_cidr6("2001:db8::/44")
 
 	// Used: 2001:db8:1::/48
 	used := []netx.IP6_Network{
 		netx.must_parse_cidr6("2001:db8:1::/48"),
 	}
 
-	// Find free /48 subnets (this will take a while for large spaces,
-	// so we limit our search)
+	// Find free /48 subnets (only 16 in a /44)
 	free := netx.find_free_subnets6(parent, used, 48, context.temp_allocator)
 
 	testing.expect(t, len(free) > 0, "Should find free IPv6 subnets")
@@ -954,14 +953,14 @@ test_find_free_subnets4_no_space :: proc(t: ^testing.T) {
 
 @(test)
 test_find_free_subnets6_no_space :: proc(t: ^testing.T) {
-	// Parent: 2001:db8::/32
-	parent := netx.must_parse_cidr6("2001:db8::/32")
+	// Parent: 2001:db8::/60 - use smaller range for reasonable test time
+	parent := netx.must_parse_cidr6("2001:db8::/60")
 
 	// Used: entire parent
 	used := []netx.IP6_Network{parent}
 
-	// Try to find free /48 subnets
-	free := netx.find_free_subnets6(parent, used, 48, context.temp_allocator)
+	// Try to find free /64 subnets (would be 16 if any were free)
+	free := netx.find_free_subnets6(parent, used, 64, context.temp_allocator)
 
 	testing.expect_value(t, len(free), 0)
 }
@@ -1159,4 +1158,119 @@ test_subnet_utilization6_overlapping :: proc(t: ^testing.T) {
 	// Note: IPv6 utilization doesn't account for overlaps (see ipam.odin:910)
 	// So it adds up sizes: 0.5 + 0.25 = 0.75
 	testing.expect_value(t, util, 0.75)
+}
+
+// ============================================================================
+// VLSM TESTS
+// ============================================================================
+
+@(test)
+test_vlsm4_basic :: proc(t: ^testing.T) {
+	// Split 192.168.0.0/24 for three departments
+	parent := netx.must_parse_cidr4("192.168.0.0/24")
+	requirements := []netx.VLSM_Requirement{
+		{hosts = 100, name = "Engineering"},  // Needs /25 (126 hosts)
+		{hosts = 50, name = "Sales"},  // Needs /26 (62 hosts)
+		{hosts = 20, name = "HR"},  // Needs /27 (30 hosts)
+	}
+
+	subnets, ok := netx.split_network_vlsm4(parent, requirements, context.temp_allocator)
+	testing.expect(t, ok, "VLSM should succeed")
+	testing.expect_value(t, len(subnets), 3)
+
+	// Verify all subnets are within parent
+	for subnet in subnets {
+		testing.expect(t, netx.is_subnet_of4(subnet, parent), "Subnet should be within parent")
+	}
+
+	// Verify subnets don't overlap
+	testing.expect(
+		t,
+		!netx.overlaps4(subnets[0], subnets[1]),
+		"Subnets should not overlap",
+	)
+	testing.expect(
+		t,
+		!netx.overlaps4(subnets[1], subnets[2]),
+		"Subnets should not overlap",
+	)
+	testing.expect(
+		t,
+		!netx.overlaps4(subnets[0], subnets[2]),
+		"Subnets should not overlap",
+	)
+
+	// Verify each subnet has enough hosts
+	testing.expect(
+		t,
+		netx.host_count4(subnets[0]) >= u32(requirements[0].hosts),
+		"Engineering subnet should have enough hosts",
+	)
+	testing.expect(
+		t,
+		netx.host_count4(subnets[1]) >= u32(requirements[1].hosts),
+		"Sales subnet should have enough hosts",
+	)
+	testing.expect(
+		t,
+		netx.host_count4(subnets[2]) >= u32(requirements[2].hosts),
+		"HR subnet should have enough hosts",
+	)
+}
+
+@(test)
+test_vlsm6_basic :: proc(t: ^testing.T) {
+	parent := netx.must_parse_cidr6("2001:db8::/48")
+	requirements := []netx.VLSM_Requirement{{hosts = 1000}, {hosts = 500}, {hosts = 100}}
+
+	subnets, ok := netx.split_network_vlsm6(parent, requirements, context.temp_allocator)
+	testing.expect(t, ok, "VLSM should succeed")
+	testing.expect_value(t, len(subnets), 3)
+
+	// Verify all subnets are within parent
+	for subnet in subnets {
+		testing.expect(t, netx.is_subnet_of6(subnet, parent), "Subnet should be within parent")
+	}
+}
+
+@(test)
+test_vlsm4_no_space :: proc(t: ^testing.T) {
+	// Try to fit too much into a small network
+	parent := netx.must_parse_cidr4("192.168.1.0/28") // Only 14 usable hosts
+	requirements := []netx.VLSM_Requirement{{hosts = 20}, {hosts = 10}}
+
+	_, ok := netx.split_network_vlsm4(parent, requirements, context.temp_allocator)
+	testing.expect(t, !ok, "VLSM should fail when there's not enough space")
+}
+
+@(test)
+test_vlsm4_empty :: proc(t: ^testing.T) {
+	parent := netx.must_parse_cidr4("10.0.0.0/24")
+	requirements := []netx.VLSM_Requirement{}
+
+	subnets, ok := netx.split_network_vlsm4(parent, requirements, context.temp_allocator)
+	testing.expect(t, ok, "Empty requirements should succeed")
+	testing.expect_value(t, len(subnets), 0)
+}
+
+@(test)
+test_vlsm4_ordering :: proc(t: ^testing.T) {
+	// Verify subnets are returned in the same order as requirements
+	parent := netx.must_parse_cidr4("10.0.0.0/22")
+	requirements := []netx.VLSM_Requirement{
+		{hosts = 10, name = "Small"},
+		{hosts = 500, name = "Large"},
+		{hosts = 100, name = "Medium"},
+	}
+
+	subnets, ok := netx.split_network_vlsm4(parent, requirements, context.temp_allocator)
+	testing.expect(t, ok, "VLSM should succeed")
+
+	// Order should match requirements, even though internally sorted by size
+	// Small subnet should be smaller than Large subnet
+	testing.expect(
+		t,
+		subnets[0].prefix_len > subnets[1].prefix_len,
+		"Small requirement should get smaller subnet",
+	)
 }

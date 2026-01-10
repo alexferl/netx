@@ -2217,3 +2217,60 @@ test_ipv4_mapped_string_representation :: proc(t: ^testing.T) {
 	// Common representations: ::ffff:192.0.2.1 or ::ffff:c000:201
 	testing.expect(t, strings.contains(str, "ffff"), "String should contain 'ffff'")
 }
+
+// ============================================================================
+// RANDOM IP GENERATION TESTS
+// ============================================================================
+
+@(test)
+test_random_ip4_in_network :: proc(t: ^testing.T) {
+	network := netx.must_parse_cidr4("192.168.1.0/24")
+
+	// Generate several random IPs and verify they're all in the network
+	for _ in 0 ..< 100 {
+		random_ip := netx.random_ip4_in_network(network)
+		testing.expect(
+			t,
+			netx.contains4(network, random_ip),
+			"Random IP should be within network",
+		)
+	}
+}
+
+@(test)
+test_random_ip6_in_network :: proc(t: ^testing.T) {
+	network := netx.must_parse_cidr6("2001:db8::/32")
+
+	// Generate several random IPs and verify they're all in the network
+	for _ in 0 ..< 100 {
+		random_ip := netx.random_ip6_in_network(network)
+		testing.expect(
+			t,
+			netx.contains6(network, random_ip),
+			"Random IPv6 should be within network",
+		)
+	}
+}
+
+@(test)
+test_random_ip4_small_network :: proc(t: ^testing.T) {
+	// /30 network has only 4 addresses
+	network := netx.must_parse_cidr4("10.0.0.0/30")
+
+	// Generate many and verify all are valid
+	for _ in 0 ..< 100 {
+		random_ip := netx.random_ip4_in_network(network)
+		testing.expect(t, netx.contains4(network, random_ip), "IP should be in /30 network")
+	}
+}
+
+@(test)
+test_random_ip6_small_network :: proc(t: ^testing.T) {
+	// /126 network
+	network := netx.must_parse_cidr6("2001:db8::/126")
+
+	for _ in 0 ..< 100 {
+		random_ip := netx.random_ip6_in_network(network)
+		testing.expect(t, netx.contains6(network, random_ip), "IPv6 should be in /126 network")
+	}
+}

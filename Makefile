@@ -28,6 +28,7 @@ check:
 	odin check examples/dns -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 	odin check examples/ip -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 	odin check examples/ipam -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
+	odin check examples/ipset -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 	odin check examples/mac -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 
 test:

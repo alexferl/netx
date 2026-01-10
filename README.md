@@ -51,6 +51,25 @@ Inspired by Go's [`net/netip`](https://pkg.go.dev/net/netip) package, providing 
 - **Subnet Discovery**: Find available subnets of specific sizes
 - **Free Block Analysis**: Locate largest contiguous free space
 - **Utilization Metrics**: Calculate network usage percentages
+- **VLSM (Variable Length Subnet Masking)**: Optimally split networks based on host requirements
+  - Automatically allocates smallest sufficient subnets for each requirement
+  - Minimizes address space fragmentation by allocating largest subnets first
+  - Returns subnets in original requirement order for easy mapping
+
+### IP Set Data Structure (`ipset.odin`)
+- **Radix Tree Implementation**: Efficient O(log n) IP prefix lookups
+- **Fast Membership Testing**: Check if an address is in any stored network
+- **Longest Prefix Matching**: Find most specific network containing an address
+- **Network Management**: Insert and remove networks dynamically
+- **Memory Efficient**: Stores prefixes, not individual addresses
+- **Use Cases**: Firewalls, routing tables, ACLs, rate limiting, geolocation
+
+### Random IP Generation (`ip.odin`)
+- **Network-Aware**: Generate random IPs within specific CIDR blocks
+- **Uniform Distribution**: Uses Odin's crypto-quality RNG
+- **Handles All Sizes**: Works with tiny (/30) to massive (/8) IPv4 networks
+- **IPv6 Support**: Efficient random generation even for huge IPv6 spaces
+- **Use Cases**: Testing, load balancing, simulation, test data generation
 
 ## Installation
 
@@ -125,6 +144,36 @@ main :: proc() {
     used := []netx.IP4_Network{netx.must_parse_cidr4("10.0.1.0/24")}
     free := netx.find_free_subnets4(parent, used, 24)
     fmt.println(len(free))  // 255 available /24 subnets
+
+    // VLSM: Split network optimally for different department sizes
+    company := netx.must_parse_cidr4("192.168.0.0/24")
+    requirements := []netx.VLSM_Requirement{
+        {hosts = 100, name = "Engineering"},
+        {hosts = 50, name = "Sales"},
+        {hosts = 20, name = "HR"},
+    }
+    vlsm_subnets, vlsm_ok := netx.split_network_vlsm4(company, requirements)
+    if vlsm_ok {
+        fmt.println(netx.network_to_string4(vlsm_subnets[0]))  // 192.168.0.0/25
+    }
+
+    // IP Sets: Fast prefix matching with radix trees
+    set := netx.set_init4()
+    defer netx.set_destroy4(&set)
+
+    netx.set_insert4(&set, netx.must_parse_cidr4("10.0.0.0/8"))
+    netx.set_insert4(&set, netx.must_parse_cidr4("192.168.0.0/16"))
+
+    fmt.println(netx.set_contains4(&set, net.IP4_Address{10, 1, 2, 3}))  // true
+
+    // Longest prefix match (like routing table lookup)
+    match, _ := netx.set_longest_match4(&set, net.IP4_Address{10, 5, 5, 5})
+    fmt.println(netx.network_to_string4(match))  // 10.0.0.0/8
+
+    // Random IP generation for testing or load balancing
+    test_net := netx.must_parse_cidr4("192.0.2.0/24")  // TEST-NET-1
+    random_ip := netx.random_ip4_in_network(test_net)
+    fmt.println(netx.addr_to_string4(random_ip))  // Random IP in 192.0.2.0/24
 }
 ```
 
@@ -132,7 +181,8 @@ main :: proc() {
 
 See the [examples](examples/) directory for complete working examples:
 
-- `ip.odin` - IPv4/IPv6 address and CIDR operations
-- `ipam.odin` - IPAM features (aggregation, pools, exclusion, subnet discovery)
-- `mac.odin` - MAC address parsing, formatting, and conversion
-- `dns.odin` - Reverse DNS PTR record generation and parsing
+- `ip/` - IPv4/IPv6 operations, address:port, IPv4-mapped IPv6, random IP generation
+- `ipam/` - IPAM features (aggregation, pools, exclusion, subnet discovery, VLSM)
+- `ipset/` - IP set radix trees for fast lookups, firewalls, routing, ACLs
+- `mac/` - MAC address parsing, formatting, and conversion
+- `dns/` - Reverse DNS PTR record generation and parsing

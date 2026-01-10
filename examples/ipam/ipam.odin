@@ -489,4 +489,119 @@ main :: proc() {
 			netx.host_count4(largest_after))
 		}
 	}
+
+	// ========================================================================
+	// VLSM (VARIABLE LENGTH SUBNET MASKING)
+	// ========================================================================
+
+	fmt.println("\n--- VLSM: Variable Length Subnet Masking ---")
+	fmt.println("Scenario: Optimally splitting a network for different department sizes")
+
+	// Company needs to allocate 192.168.0.0/24 for three departments
+	company_network := netx.must_parse_cidr4("192.168.0.0/24")
+	requirements := []netx.VLSM_Requirement{
+		{hosts = 100, name = "Engineering"},  // Needs ~100 hosts
+		{hosts = 50, name = "Sales"},         // Needs ~50 hosts
+		{hosts = 20, name = "HR"},            // Needs ~20 hosts
+	}
+
+	fmt.printf("Splitting %s for departments:\n", netx.network_to_string4(company_network))
+	for req in requirements {
+		fmt.printf("  %s: %d hosts\n", req.name, req.hosts)
+	}
+
+	// VLSM automatically allocates optimally-sized subnets (largest first to minimize fragmentation)
+	subnets, vlsm_ok := netx.split_network_vlsm4(company_network, requirements, context.temp_allocator)
+
+	if vlsm_ok {
+		fmt.println("\nAllocated subnets (in requirement order):")
+		for subnet, i in subnets {
+			req := requirements[i]
+			fmt.printf("  %s: %s (%d usable hosts)\n",
+				req.name,
+				netx.network_to_string4(subnet),
+				netx.host_count4(subnet))
+		}
+
+		// Verify no overlaps
+		fmt.println("\nVerification:")
+		for i in 0 ..< len(subnets) {
+			for j in i + 1 ..< len(subnets) {
+				if netx.overlaps4(subnets[i], subnets[j]) {
+					fmt.println("  ERROR: Subnets overlap!")
+				}
+			}
+		}
+		fmt.println("  All subnets are non-overlapping ✓")
+
+		// Show utilization
+		vlsm_util := netx.subnet_utilization4(company_network, subnets)
+		fmt.printf("  Network utilization: %.1f%%\n", vlsm_util * 100)
+	} else {
+		fmt.println("ERROR: Could not fit all requirements in the network")
+	}
+
+	// VLSM with IPv6
+	fmt.println("\n--- VLSM with IPv6 ---")
+	ipv6_parent := netx.must_parse_cidr6("2001:db8::/56")
+	ipv6_reqs := []netx.VLSM_Requirement{
+		{hosts = 10000, name = "Data Center"},
+		{hosts = 1000, name = "Office"},
+		{hosts = 100, name = "Lab"},
+	}
+
+	fmt.printf("Splitting %s:\n", netx.network_to_string6(ipv6_parent))
+	subnets6, vlsm6_ok := netx.split_network_vlsm6(ipv6_parent, ipv6_reqs, context.temp_allocator)
+
+	if vlsm6_ok {
+		fmt.println("Allocated IPv6 subnets:")
+		for subnet6, i in subnets6 {
+			req := ipv6_reqs[i]
+			fmt.printf("  %s: %s\n", req.name, netx.network_to_string6(subnet6))
+		}
+	}
+
+	// Example: VLSM for varied network sizes
+	fmt.println("\n--- Complex VLSM Scenario ---")
+	campus := netx.must_parse_cidr4("10.0.0.0/22")  // 1024 addresses
+	campus_reqs := []netx.VLSM_Requirement{
+		{hosts = 200, name = "Building A"},
+		{hosts = 100, name = "Building B"},
+		{hosts = 50, name = "Building C"},
+		{hosts = 25, name = "WiFi APs"},
+		{hosts = 10, name = "Servers"},
+	}
+
+	fmt.printf("Campus network: %s\n", netx.network_to_string4(campus))
+	campus_subnets, campus_ok := netx.split_network_vlsm4(campus, campus_reqs, context.temp_allocator)
+
+	if campus_ok {
+		fmt.println("VLSM allocation:")
+		for subnet, i in campus_subnets {
+			req := campus_reqs[i]
+			range := netx.network_range4(subnet)
+			fmt.printf("  %s: %s (%d hosts, %s - %s)\n",
+				req.name,
+				netx.network_to_string4(subnet),
+				netx.host_count4(subnet),
+				netx.addr_to_string4(range.start),
+				netx.addr_to_string4(range.end))
+		}
+
+		// Calculate waste
+		total_needed := 0
+		for req in campus_reqs {
+			total_needed += req.hosts
+		}
+		total_allocated := 0
+		for subnet in campus_subnets {
+			total_allocated += int(netx.host_count4(subnet))
+		}
+		waste := total_allocated - total_needed
+		waste_pct := f64(waste) / f64(total_allocated) * 100
+
+		fmt.printf("\nTotal needed: %d hosts\n", total_needed)
+		fmt.printf("Total allocated: %d hosts\n", total_allocated)
+		fmt.printf("Waste: %d hosts (%.1f%%)\n", waste, waste_pct)
+	}
 }

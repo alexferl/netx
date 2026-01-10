@@ -413,4 +413,76 @@ main :: proc() {
 			netx.addr_to_string6(test.addr),
 			is_mapped)
 	}
+
+	// ========================================================================
+	// RANDOM IP GENERATION
+	// ========================================================================
+
+	fmt.println("\n========================================")
+	fmt.println("RANDOM IP GENERATION")
+	fmt.println("========================================")
+
+	fmt.println("\n--- Random IPv4 Addresses in Network ---")
+	test_network := netx.must_parse_cidr4("192.168.1.0/24")
+	fmt.printf("Generating random IPs in %s:\n", netx.network_to_string4(test_network))
+	for i in 0 ..< 5 {
+		random_ip := netx.random_ip4_in_network(test_network)
+		fmt.printf("  Random IP %d: %s\n", i+1, netx.addr_to_string4(random_ip))
+		// Verify it's actually in the network
+		if !netx.contains4(test_network, random_ip) {
+			fmt.println("    ERROR: IP not in network!")
+		}
+	}
+
+	fmt.println("\n--- Random IPs in Small Network ---")
+	small_network := netx.must_parse_cidr4("10.0.0.0/30")  // Only 4 addresses
+	fmt.printf("Generating IPs in %s (only %d addresses):\n",
+		netx.network_to_string4(small_network),
+		1 << (32 - small_network.prefix_len))
+
+	seen_ips := make(map[u32]bool, context.temp_allocator)
+	for _ in 0 ..< 20 {
+		random_ip := netx.random_ip4_in_network(small_network)
+		ip_u32 := netx.addr4_to_u32(random_ip)
+		if !seen_ips[ip_u32] {
+			fmt.printf("  %s (first occurrence)\n", netx.addr_to_string4(random_ip))
+			seen_ips[ip_u32] = true
+		}
+	}
+	fmt.printf("Unique IPs generated: %d\n", len(seen_ips))
+
+	fmt.println("\n--- Random IPv6 Addresses ---")
+	ipv6_random_net := netx.must_parse_cidr6("2001:db8::/64")
+	fmt.printf("Generating random IPv6 addresses in %s:\n", netx.network_to_string6(ipv6_random_net))
+	for i in 0 ..< 5 {
+		random_ip6 := netx.random_ip6_in_network(ipv6_random_net)
+		fmt.printf("  Random IPv6 %d: %s\n", i+1, netx.addr_to_string6(random_ip6))
+	}
+
+	fmt.println("\n--- Practical Use: Load Balancer IP Pool ---")
+	lb_pool := netx.must_parse_cidr4("10.10.10.0/28")  // 14 usable IPs
+	fmt.printf("Load balancer pool: %s (%d usable addresses)\n",
+		netx.network_to_string4(lb_pool),
+		netx.host_count4(lb_pool))
+
+	fmt.println("Simulating random backend server selection:")
+	backends := make([dynamic]net.IP4_Address, context.temp_allocator)
+	for i in 0 ..< 5 {
+		backend := netx.random_ip4_in_network(lb_pool)
+		append(&backends, backend)
+		fmt.printf("  Backend %d: %s\n", i+1, netx.addr_to_string4(backend))
+	}
+
+	fmt.println("\n--- Practical Use: Random Test Data Generation ---")
+	test_ranges := []netx.IP4_Network{
+		netx.must_parse_cidr4("192.0.2.0/24"),    // TEST-NET-1
+		netx.must_parse_cidr4("198.51.100.0/24"), // TEST-NET-2
+		netx.must_parse_cidr4("203.0.113.0/24"),  // TEST-NET-3
+	}
+
+	fmt.println("Generating test IPs from documentation ranges:")
+	for test_range, idx in test_ranges {
+		random_test_ip := netx.random_ip4_in_network(test_range)
+		fmt.printf("  Test IP from range %d: %s\n", idx+1, netx.addr_to_string4(random_test_ip))
+	}
 }

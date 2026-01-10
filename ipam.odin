@@ -2,6 +2,7 @@ package netx
 
 import "base:intrinsics"
 import "core:net"
+import "core:slice"
 
 // ============================================================================
 // IPAM - IP Address Management
@@ -268,6 +269,12 @@ IP4_Pool :: struct {
 	next_candidate: net.IP4_Address,
 }
 
+IP6_Pool :: struct {
+	network: IP6_Network,
+	allocated: map[net.IP6_Address]bool,
+	next_candidate: net.IP6_Address,
+}
+
 pool4_init :: proc(network: IP4_Network, allocator := context.allocator) -> IP4_Pool {
 	pool := IP4_Pool{
 		network = network,
@@ -284,7 +291,26 @@ pool4_init :: proc(network: IP4_Network, allocator := context.allocator) -> IP4_
 	return pool
 }
 
+pool6_init :: proc(network: IP6_Network, allocator := context.allocator) -> IP6_Pool {
+	pool := IP6_Pool{
+		network = network,
+		allocated = make(map[net.IP6_Address]bool, allocator),
+	}
+
+	pool.next_candidate = network.address
+	next, ok := next_ip6(pool.next_candidate)
+	if ok {
+		pool.next_candidate = next
+	}
+
+	return pool
+}
+
 pool4_destroy :: proc(pool: ^IP4_Pool) {
+	delete(pool.allocated)
+}
+
+pool6_destroy :: proc(pool: ^IP6_Pool) {
 	delete(pool.allocated)
 }
 
@@ -324,48 +350,6 @@ pool4_allocate :: proc(pool: ^IP4_Pool) -> (addr: net.IP4_Address, ok: bool) {
 	}
 }
 
-pool4_free :: proc(pool: ^IP4_Pool, addr: net.IP4_Address) -> bool {
-	if addr in pool.allocated {
-		delete_key(&pool.allocated, addr)
-		return true
-	}
-	return false
-}
-
-pool4_available :: proc(pool: ^IP4_Pool) -> int {
-	total := int(host_count4(pool.network))
-	return total - len(pool.allocated)
-}
-
-pool4_is_allocated :: proc(pool: ^IP4_Pool, addr: net.IP4_Address) -> bool {
-	return addr in pool.allocated
-}
-
-IP6_Pool :: struct {
-	network: IP6_Network,
-	allocated: map[net.IP6_Address]bool,
-	next_candidate: net.IP6_Address,
-}
-
-pool6_init :: proc(network: IP6_Network, allocator := context.allocator) -> IP6_Pool {
-	pool := IP6_Pool{
-		network = network,
-		allocated = make(map[net.IP6_Address]bool, allocator),
-	}
-
-	pool.next_candidate = network.address
-	next, ok := next_ip6(pool.next_candidate)
-	if ok {
-		pool.next_candidate = next
-	}
-
-	return pool
-}
-
-pool6_destroy :: proc(pool: ^IP6_Pool) {
-	delete(pool.allocated)
-}
-
 pool6_allocate :: proc(pool: ^IP6_Pool) -> (addr: net.IP6_Address, ok: bool) {
 	range := network_range6(pool.network)
 
@@ -400,12 +384,25 @@ pool6_allocate :: proc(pool: ^IP6_Pool) -> (addr: net.IP6_Address, ok: bool) {
 	}
 }
 
+pool4_free :: proc(pool: ^IP4_Pool, addr: net.IP4_Address) -> bool {
+	if addr in pool.allocated {
+		delete_key(&pool.allocated, addr)
+		return true
+	}
+	return false
+}
+
 pool6_free :: proc(pool: ^IP6_Pool, addr: net.IP6_Address) -> bool {
 	if addr in pool.allocated {
 		delete_key(&pool.allocated, addr)
 		return true
 	}
 	return false
+}
+
+pool4_available :: proc(pool: ^IP4_Pool) -> int {
+	total := int(host_count4(pool.network))
+	return total - len(pool.allocated)
 }
 
 pool6_available :: proc(pool: ^IP6_Pool) -> int {
@@ -417,6 +414,9 @@ pool6_available :: proc(pool: ^IP6_Pool) -> int {
 	return total - len(pool.allocated)
 }
 
+pool4_is_allocated :: proc(pool: ^IP4_Pool, addr: net.IP4_Address) -> bool {
+	return addr in pool.allocated
+}
 
 pool6_is_allocated :: proc(pool: ^IP6_Pool, addr: net.IP6_Address) -> bool {
 	return addr in pool.allocated
@@ -921,19 +921,101 @@ _calculate_prefix_for_size4 :: proc(size: u32) -> u8 {
 		return 32
 	}
 
-	// Find the highest bit set
-	bits := 32 - intrinsics.count_leading_zeros(size)
+	// Find number of bits needed for (size-1) to round up to next power of 2
+	// This ensures we get the smallest network that can hold at least 'size' addresses
+	bits := 32 - intrinsics.count_leading_zeros(size - 1)
 
 	// The prefix length is 32 - bits
 	prefix := u8(32 - bits)
 
-	// But we need to ensure the size is a power of 2
-	// If not, use one bit more specific
-	if size & (size - 1) != 0 {
-		prefix += 1
+	return max(prefix, 0)
+}
+
+// Helper to find the next free subnet of a given prefix length
+// Returns the first subnet that doesn't overlap with any in 'used'
+@(private)
+_find_next_free_subnet4 :: proc(parent: IP4_Network, used: []IP4_Network, prefix: u8) -> (subnet: IP4_Network, ok: bool) {
+	if prefix < parent.prefix_len {
+		return {}, false
 	}
 
-	return max(prefix, 0)
+	current := masked4(IP4_Network{parent.address, prefix})
+	parent_range := network_range4(parent)
+	parent_last := parent_range.end
+
+	for {
+		// Check if current subnet is within parent
+		current_range := network_range4(current)
+		if compare_addr4(current_range.end, parent_last) > 0 {
+			break
+		}
+
+		// Check if this subnet overlaps with any used networks
+		is_free := true
+		for used_net in used {
+			if overlaps4(current, used_net) {
+				is_free = false
+				break
+			}
+		}
+
+		if is_free {
+			return current, true
+		}
+
+		// Move to next subnet
+		next, next_ok := next_network4(current)
+		if !next_ok {
+			break
+		}
+		current = next
+	}
+
+	return {}, false
+}
+
+@(private)
+_find_next_free_subnet6 :: proc(parent: IP6_Network, used: []IP6_Network, prefix: u8) -> (subnet: IP6_Network, ok: bool) {
+	if prefix < parent.prefix_len {
+		return {}, false
+	}
+
+	current := masked6(IP6_Network{parent.address, prefix})
+	parent_range := network_range6(parent)
+	parent_last := parent_range.end
+
+	for {
+		// Check if current subnet is within parent
+		if !contains6(parent, current.address) {
+			break
+		}
+
+		// Check if this subnet overlaps with any used networks
+		is_free := true
+		for used_net in used {
+			if overlaps6(current, used_net) {
+				is_free = false
+				break
+			}
+		}
+
+		if is_free {
+			return current, true
+		}
+
+		// Move to next subnet
+		next, next_ok := next_network6(current)
+		if !next_ok {
+			break
+		}
+		current = next
+
+		if compare_addr6(current.address, parent_last) > 0 {
+			break
+		}
+	}
+
+	return {}, false
 }
 
 @(private)
@@ -942,12 +1024,137 @@ _calculate_prefix_for_size6 :: proc(size: u128) -> u8 {
 		return 128
 	}
 
-	bits := 128 - intrinsics.count_leading_zeros(size)
+	// Use (size-1) to round up to next power of 2
+	bits := 128 - intrinsics.count_leading_zeros(size - 1)
 	prefix := u8(128 - bits)
 
-	if size & (size - 1) != 0 {
-		prefix += 1
+	return max(prefix, 0)
+}
+
+// ============================================================================
+// VLSM - Variable Length Subnet Masking
+// ============================================================================
+
+// VLSM_Requirement describes a subnet requirement with desired host count
+VLSM_Requirement :: struct {
+	hosts: int,      // Number of hosts needed
+	name:  string,   // Optional name/description
+}
+
+@(private)
+_Indexed_VLSM_Req :: struct {
+	req:   VLSM_Requirement,
+	index: int,
+}
+
+// Split a parent network using VLSM to optimally fit the given requirements
+// Returns subnets in the same order as requirements
+// Requirements are sorted internally (largest first) to minimize waste
+split_network_vlsm4 :: proc(
+	parent: IP4_Network,
+	requirements: []VLSM_Requirement,
+	allocator := context.allocator,
+) -> (
+	subnets: []IP4_Network,
+	ok: bool,
+) {
+	if len(requirements) == 0 {
+		return nil, true
 	}
 
-	return max(prefix, 0)
+	// Create indexed requirements for sorting
+
+	indexed := make([]_Indexed_VLSM_Req, len(requirements), context.temp_allocator)
+	for req, i in requirements {
+		indexed[i] = _Indexed_VLSM_Req{req, i}
+	}
+
+	// Sort by hosts descending (largest first)
+	slice.sort_by(indexed, proc(a, b: _Indexed_VLSM_Req) -> bool {
+		return a.req.hosts > b.req.hosts
+	})
+
+	// Allocate subnets
+	result := make([]IP4_Network, len(requirements), allocator)
+	allocated := make([dynamic]IP4_Network, 0, len(requirements), context.temp_allocator)
+
+	for item in indexed {
+		req := item.req
+		// Calculate prefix length needed (+2 for network and broadcast)
+		needed_addrs := u32(req.hosts + 2)
+		prefix_len := _calculate_prefix_for_size4(needed_addrs)
+
+		if prefix_len < parent.prefix_len {
+			// Requirement too large for parent
+			delete(result, allocator)
+			return nil, false
+		}
+
+		// Find next free subnet of this size
+		subnet, subnet_ok := _find_next_free_subnet4(parent, allocated[:], prefix_len)
+		if !subnet_ok {
+			// No space available
+			delete(result, allocator)
+			return nil, false
+		}
+
+		result[item.index] = subnet
+		append(&allocated, subnet)
+	}
+
+	return result, true
+}
+
+split_network_vlsm6 :: proc(
+	parent: IP6_Network,
+	requirements: []VLSM_Requirement,
+	allocator := context.allocator,
+) -> (
+	subnets: []IP6_Network,
+	ok: bool,
+) {
+	if len(requirements) == 0 {
+		return nil, true
+	}
+
+	// Create indexed requirements for sorting
+	indexed := make([]_Indexed_VLSM_Req, len(requirements), context.temp_allocator)
+	for req, i in requirements {
+		indexed[i] = _Indexed_VLSM_Req{req, i}
+	}
+
+	// Sort by hosts descending (largest first)
+	slice.sort_by(indexed, proc(a, b: _Indexed_VLSM_Req) -> bool {
+		return a.req.hosts > b.req.hosts
+	})
+
+	// Allocate subnets
+	result := make([]IP6_Network, len(requirements), allocator)
+	allocated := make([dynamic]IP6_Network, 0, len(requirements), context.temp_allocator)
+
+	for item in indexed {
+		req := item.req
+		// Calculate prefix length needed
+		needed_addrs := u128(req.hosts)
+		prefix_len := _calculate_prefix_for_size6(needed_addrs)
+
+		if prefix_len < parent.prefix_len {
+			// Requirement too large for parent
+			delete(result, allocator)
+			return nil, false
+		}
+
+		// Find next free subnet of this size
+		subnet, subnet_ok := _find_next_free_subnet6(parent, allocated[:], prefix_len)
+		if !subnet_ok {
+			// No space available
+			delete(result, allocator)
+			return nil, false
+		}
+
+		result[item.index] = subnet
+		append(&allocated, subnet)
+	}
+
+	return result, true
 }

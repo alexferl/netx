@@ -33,5 +33,8 @@ jobs:
       - name: Run Checks Examples IPAM
         run: odin check examples/ipam -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 
+      - name: Run Checks Examples IPSet
+        run: odin check examples/ipset -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
+
       - name: Run Checks Examples MAC
         run: odin check examples/mac -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
