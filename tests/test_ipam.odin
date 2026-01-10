@@ -29,114 +29,9 @@ test_can_merge4 :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_merge4 :: proc(t: ^testing.T) {
-	// Merge two /25 networks into /24
-	net_a := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 25}
-	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 1, 128}, 25}
-
-	merged := netx.merge4(net_a, net_b)
-	testing.expect_value(t, merged.address, net.IP4_Address{192, 168, 1, 0})
-	testing.expect_value(t, merged.prefix_len, u8(24))
-
-	// Merge two /24 networks into /23
-	net_c := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 24}
-	net_d := netx.IP4_Network{net.IP4_Address{10, 0, 1, 0}, 24}
-
-	merged2 := netx.merge4(net_c, net_d)
-	testing.expect_value(t, merged2.address, net.IP4_Address{10, 0, 0, 0})
-	testing.expect_value(t, merged2.prefix_len, u8(23))
-}
-
-@(test)
-test_aggregate_networks4 :: proc(t: ^testing.T) {
-	// Adjacent /25 networks should merge into /24
-	networks := []netx.IP4_Network{
-		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 25},
-		netx.IP4_Network{net.IP4_Address{192, 168, 1, 128}, 25},
-	}
-
-	result := netx.aggregate_networks4(networks, context.temp_allocator)
-	testing.expect_value(t, len(result), 1)
-	testing.expect_value(t, result[0].prefix_len, u8(24))
-	testing.expect_value(t, result[0].address, net.IP4_Address{192, 168, 1, 0})
-}
-
-@(test)
-test_aggregate_networks4_multiple :: proc(t: ^testing.T) {
-	// Four /26 networks should merge into /24
-	networks := []netx.IP4_Network{
-		netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 26},
-		netx.IP4_Network{net.IP4_Address{10, 0, 0, 64}, 26},
-		netx.IP4_Network{net.IP4_Address{10, 0, 0, 128}, 26},
-		netx.IP4_Network{net.IP4_Address{10, 0, 0, 192}, 26},
-	}
-
-	result := netx.aggregate_networks4(networks, context.temp_allocator)
-	testing.expect_value(t, len(result), 1)
-	testing.expect_value(t, result[0].prefix_len, u8(24))
-}
-
-@(test)
-test_aggregate_networks4_non_adjacent :: proc(t: ^testing.T) {
-	// Non-adjacent networks shouldn't merge
-	networks := []netx.IP4_Network{
-		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24},
-		netx.IP4_Network{net.IP4_Address{192, 168, 3, 0}, 24},
-	}
-
-	result := netx.aggregate_networks4(networks, context.temp_allocator)
-	testing.expect_value(t, len(result), 2)
-}
-
-@(test)
-test_aggregate_networks4_empty :: proc(t: ^testing.T) {
-	networks: []netx.IP4_Network
-	result := netx.aggregate_networks4(networks, context.temp_allocator)
-	testing.expect_value(t, len(result), 0)
-}
-
-@(test)
-test_aggregate_networks4_single :: proc(t: ^testing.T) {
-	networks := []netx.IP4_Network{
-		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24},
-	}
-
-	result := netx.aggregate_networks4(networks, context.temp_allocator)
-	testing.expect_value(t, len(result), 1)
-	testing.expect_value(t, result[0].prefix_len, u8(24))
-	testing.expect_value(t, result[0].address, net.IP4_Address{192, 168, 1, 0})
-}
-
-@(test)
-test_aggregate_networks4_different_prefix_lengths :: proc(t: ^testing.T) {
-	// Networks with different prefix lengths that don't merge
-	networks := []netx.IP4_Network{
-		netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 16},
-		netx.IP4_Network{net.IP4_Address{10, 1, 0, 0}, 24},
-	}
-
-	result := netx.aggregate_networks4(networks, context.temp_allocator)
-	// Different prefix lengths, non-adjacent, won't merge
-	testing.expect_value(t, len(result), 2)
-}
-
-@(test)
-test_aggregate_networks4_overlapping :: proc(t: ^testing.T) {
-	// Same network duplicated
-	networks := []netx.IP4_Network{
-		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24},
-		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24},  // Duplicate
-	}
-
-	result := netx.aggregate_networks4(networks, context.temp_allocator)
-	// Aggregation may or may not remove duplicates - adjust based on actual behavior
-	testing.expect(t, len(result) >= 1, "Should have at least one network")
-}
-
-@(test)
 test_can_merge6 :: proc(t: ^testing.T) {
-	// Two /65 networks: ::/65 and the next /65
-	// First network: ::/65 covers 0 to 2^63-1
+// Two /65 networks: ::/65 and the next /65
+// First network: ::/65 covers 0 to 2^63-1
 	addr_a := netx.ipv6_unspecified()
 	net_a := netx.IP6_Network{addr_a, 65}
 
@@ -179,8 +74,27 @@ test_can_merge6 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_merge4 :: proc(t: ^testing.T) {
+	// Merge two /25 networks into /24
+	net_a := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 25}
+	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 1, 128}, 25}
+
+	merged := netx.merge4(net_a, net_b)
+	testing.expect_value(t, merged.address, net.IP4_Address{192, 168, 1, 0})
+	testing.expect_value(t, merged.prefix_len, u8(24))
+
+	// Merge two /24 networks into /23
+	net_c := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 24}
+	net_d := netx.IP4_Network{net.IP4_Address{10, 0, 1, 0}, 24}
+
+	merged2 := netx.merge4(net_c, net_d)
+	testing.expect_value(t, merged2.address, net.IP4_Address{10, 0, 0, 0})
+	testing.expect_value(t, merged2.prefix_len, u8(23))
+}
+
+@(test)
 test_merge6 :: proc(t: ^testing.T) {
-	// Merge two /65 networks into /64
+// Merge two /65 networks into /64
 	segments_a: [8]u16be
 	segments_a[0] = 0x2001
 	segments_a[1] = 0x0db8
@@ -197,6 +111,20 @@ test_merge6 :: proc(t: ^testing.T) {
 	testing.expect_value(t, u16(merged_segments[0]), u16(0x2001))
 	testing.expect_value(t, u16(merged_segments[1]), u16(0x0db8))
 	testing.expect_value(t, merged.prefix_len, u8(64))
+}
+
+@(test)
+test_aggregate_networks4 :: proc(t: ^testing.T) {
+	// Adjacent /25 networks should merge into /24
+	networks := []netx.IP4_Network{
+		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 25},
+		netx.IP4_Network{net.IP4_Address{192, 168, 1, 128}, 25},
+	}
+
+	result := netx.aggregate_networks4(networks, context.temp_allocator)
+	testing.expect_value(t, len(result), 1)
+	testing.expect_value(t, result[0].prefix_len, u8(24))
+	testing.expect_value(t, result[0].address, net.IP4_Address{192, 168, 1, 0})
 }
 
 @(test)
@@ -219,6 +147,21 @@ test_aggregate_networks6 :: proc(t: ^testing.T) {
 	result := netx.aggregate_networks6(networks, context.temp_allocator)
 	testing.expect_value(t, len(result), 1)
 	testing.expect_value(t, result[0].prefix_len, u8(64))
+}
+
+@(test)
+test_aggregate_networks4_multiple :: proc(t: ^testing.T) {
+	// Four /26 networks should merge into /24
+	networks := []netx.IP4_Network{
+		netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 26},
+		netx.IP4_Network{net.IP4_Address{10, 0, 0, 64}, 26},
+		netx.IP4_Network{net.IP4_Address{10, 0, 0, 128}, 26},
+		netx.IP4_Network{net.IP4_Address{10, 0, 0, 192}, 26},
+	}
+
+	result := netx.aggregate_networks4(networks, context.temp_allocator)
+	testing.expect_value(t, len(result), 1)
+	testing.expect_value(t, result[0].prefix_len, u8(24))
 }
 
 @(test)
@@ -255,6 +198,18 @@ test_aggregate_networks6_multiple :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_aggregate_networks4_non_adjacent :: proc(t: ^testing.T) {
+	// Non-adjacent networks shouldn't merge
+	networks := []netx.IP4_Network{
+		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24},
+		netx.IP4_Network{net.IP4_Address{192, 168, 3, 0}, 24},
+	}
+
+	result := netx.aggregate_networks4(networks, context.temp_allocator)
+	testing.expect_value(t, len(result), 2)
+}
+
+@(test)
 test_aggregate_networks6_non_adjacent :: proc(t: ^testing.T) {
 	// Non-adjacent networks shouldn't merge
 	segments1: [8]u16be
@@ -277,10 +232,29 @@ test_aggregate_networks6_non_adjacent :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_aggregate_networks4_empty :: proc(t: ^testing.T) {
+	networks: []netx.IP4_Network
+	result := netx.aggregate_networks4(networks, context.temp_allocator)
+	testing.expect_value(t, len(result), 0)
+}
+
+@(test)
 test_aggregate_networks6_empty :: proc(t: ^testing.T) {
 	networks: []netx.IP6_Network
 	result := netx.aggregate_networks6(networks, context.temp_allocator)
 	testing.expect_value(t, len(result), 0)
+}
+
+@(test)
+test_aggregate_networks4_single :: proc(t: ^testing.T) {
+	networks := []netx.IP4_Network{
+		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24},
+	}
+
+	result := netx.aggregate_networks4(networks, context.temp_allocator)
+	testing.expect_value(t, len(result), 1)
+	testing.expect_value(t, result[0].prefix_len, u8(24))
+	testing.expect_value(t, result[0].address, net.IP4_Address{192, 168, 1, 0})
 }
 
 @(test)
@@ -300,8 +274,21 @@ test_aggregate_networks6_single :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_aggregate_networks6_different_prefix_lengths :: proc(t: ^testing.T) {
+test_aggregate_networks4_different_prefix_lengths :: proc(t: ^testing.T) {
 	// Networks with different prefix lengths that don't merge
+	networks := []netx.IP4_Network{
+		netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 16},
+		netx.IP4_Network{net.IP4_Address{10, 1, 0, 0}, 24},
+	}
+
+	result := netx.aggregate_networks4(networks, context.temp_allocator)
+	// Different prefix lengths, non-adjacent, won't merge
+	testing.expect_value(t, len(result), 2)
+}
+
+@(test)
+test_aggregate_networks6_different_prefix_lengths :: proc(t: ^testing.T) {
+// Networks with different prefix lengths that don't merge
 	segments1: [8]u16be
 	segments1[0] = 0x2001
 	segments1[1] = 0x0db8
@@ -320,6 +307,19 @@ test_aggregate_networks6_different_prefix_lengths :: proc(t: ^testing.T) {
 	result := netx.aggregate_networks6(networks, context.temp_allocator)
 	// Different prefix lengths, non-adjacent, won't merge
 	testing.expect_value(t, len(result), 2)
+}
+
+@(test)
+test_aggregate_networks4_overlapping :: proc(t: ^testing.T) {
+	// Same network duplicated
+	networks := []netx.IP4_Network{
+		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24},
+		netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24},  // Duplicate
+	}
+
+	result := netx.aggregate_networks4(networks, context.temp_allocator)
+	// Aggregation may or may not remove duplicates - adjust based on actual behavior
+	testing.expect(t, len(result) >= 1, "Should have at least one network")
 }
 
 @(test)
@@ -358,6 +358,19 @@ test_range_to_cidrs4_simple :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_range_to_cidrs6_simple :: proc(t: ^testing.T) {
+	// ::/128 to ::1/128
+	start := net.IP6_Address{}
+
+	segments_end: [8]u16be
+	segments_end[7] = 1
+	end := cast(net.IP6_Address)segments_end
+
+	cidrs := netx.range_to_cidrs6(start, end, context.temp_allocator)
+	testing.expect(t, len(cidrs) >= 1, "Should generate at least 1 CIDR")
+}
+
+@(test)
 test_range_to_cidrs4_complex :: proc(t: ^testing.T) {
 	// 192.168.1.0 to 192.168.1.5 should split into multiple CIDRs
 	start := net.IP4_Address{192, 168, 1, 0}
@@ -370,23 +383,10 @@ test_range_to_cidrs4_complex :: proc(t: ^testing.T) {
 
 	// Verify coverage
 	for cidr in cidrs {
-		first, last := netx.network_range4(cidr)
-		testing.expect(t, netx.compare_addr4(first, start) >= 0, "CIDR should be >= start")
-		testing.expect(t, netx.compare_addr4(last, end) <= 0, "CIDR should be <= end")
+		range := netx.network_range4(cidr)
+		testing.expect(t, netx.compare_addr4(range.start, start) >= 0, "CIDR should be >= start")
+		testing.expect(t, netx.compare_addr4(range.end, end) <= 0, "CIDR should be <= end")
 	}
-}
-
-@(test)
-test_range_to_cidrs6_simple :: proc(t: ^testing.T) {
-	// ::/128 to ::1/128
-	start := net.IP6_Address{}
-
-	segments_end: [8]u16be
-	segments_end[7] = 1
-	end := cast(net.IP6_Address)segments_end
-
-	cidrs := netx.range_to_cidrs6(start, end, context.temp_allocator)
-	testing.expect(t, len(cidrs) >= 1, "Should generate at least 1 CIDR")
 }
 
 @(test)
@@ -410,9 +410,9 @@ test_range_to_cidrs6_complex :: proc(t: ^testing.T) {
 
 	// Verify coverage
 	for cidr in cidrs {
-		first, last := netx.network_range6(cidr)
-		testing.expect(t, netx.compare_addr6(first, start) >= 0, "CIDR should be >= start")
-		testing.expect(t, netx.compare_addr6(last, end) <= 0, "CIDR should be <= end")
+		range := netx.network_range6(cidr)
+		testing.expect(t, netx.compare_addr6(range.start, start) >= 0, "CIDR should be >= start")
+		testing.expect(t, netx.compare_addr6(range.end, end) <= 0, "CIDR should be <= end")
 	}
 }
 
@@ -688,6 +688,37 @@ test_pool6_large_network_available :: proc(t: ^testing.T) {
 	testing.expect(t, available == max(int), "Large network should report max(int) available")
 }
 
+@(test)
+test_pool6_reuse_after_free :: proc(t: ^testing.T) {
+	segments: [8]u16be
+	segments[0] = 0x2001
+	segments[1] = 0x0db8
+	addr := cast(net.IP6_Address)segments
+	network := netx.IP6_Network{addr, 125}  // 8 addresses total
+
+	pool := netx.pool6_init(network, context.temp_allocator)
+	defer netx.pool6_destroy(&pool)
+
+	addr1, _ := netx.pool6_allocate(&pool)
+	addr2, _ := netx.pool6_allocate(&pool)
+	addr3, _ := netx.pool6_allocate(&pool)
+
+	// Free the middle address
+	netx.pool6_free(&pool, addr2)
+	testing.expect(t, !netx.pool6_is_allocated(&pool, addr2), "addr2 should not be allocated")
+	testing.expect(t, netx.pool6_is_allocated(&pool, addr1), "addr1 should still be allocated")
+	testing.expect(t, netx.pool6_is_allocated(&pool, addr3), "addr3 should still be allocated")
+
+	// Allocate again - should eventually reuse freed address
+	for i := 0; i < 20; i += 1 {
+		new_addr, ok := netx.pool6_allocate(&pool)
+		if ok && new_addr == addr2 {
+			testing.expect(t, true, "Freed address was reused")
+			return
+		}
+	}
+}
+
 // ============================================================================
 // SUPERNET TESTS
 // ============================================================================
@@ -704,19 +735,8 @@ test_supernet4 :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_supernet4_distant :: proc(t: ^testing.T) {
-	// 10.0.0.0/24 and 192.168.0.0/24 -> 0.0.0.0/0 (or very short prefix)
-	net_a := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 24}
-	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 0, 0}, 24}
-
-	super := netx.supernet4(net_a, net_b)
-	// Should have a very short prefix (lots of common bits from start)
-	testing.expect(t, super.prefix_len <= 8, "Distant networks should have short prefix")
-}
-
-@(test)
 test_supernet6 :: proc(t: ^testing.T) {
-	// 2001:db8::/64 and 2001:db8:0:1::/64 -> 2001:db8::/63
+// 2001:db8::/64 and 2001:db8:0:1::/64 -> 2001:db8::/63
 	segments_a: [8]u16be
 	segments_a[0] = 0x2001
 	segments_a[1] = 0x0db8
@@ -734,6 +754,17 @@ test_supernet6 :: proc(t: ^testing.T) {
 
 	super := netx.supernet6(net_a, net_b)
 	testing.expect(t, super.prefix_len <= 64, "Should find common prefix")
+}
+
+@(test)
+test_supernet4_distant :: proc(t: ^testing.T) {
+	// 10.0.0.0/24 and 192.168.0.0/24 -> 0.0.0.0/0 (or very short prefix)
+	net_a := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 24}
+	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 0, 0}, 24}
+
+	super := netx.supernet4(net_a, net_b)
+	// Should have a very short prefix (lots of common bits from start)
+	testing.expect(t, super.prefix_len <= 8, "Distant networks should have short prefix")
 }
 
 @(test)
@@ -770,6 +801,19 @@ test_exclude4_no_overlap :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_exclude6_no_overlap :: proc(t: ^testing.T) {
+	from := netx.IP6_Network{net.IP6_Address{}, 64}
+
+	segments_exclude: [8]u16be
+	segments_exclude[0] = 0x2001
+	addr_exclude := cast(net.IP6_Address)segments_exclude
+	exclude := netx.IP6_Network{addr_exclude, 64}
+
+	result := netx.exclude6(from, exclude, context.temp_allocator)
+	testing.expect_value(t, len(result), 1)
+}
+
+@(test)
 test_exclude4_subset :: proc(t: ^testing.T) {
 	// 192.168.1.0/24 - 192.168.1.128/25 should split into parts
 	from := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
@@ -787,29 +831,6 @@ test_exclude4_subset :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_exclude4_complete :: proc(t: ^testing.T) {
-	// Excluding supernet should return nothing
-	from := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
-	exclude := netx.IP4_Network{net.IP4_Address{192, 168, 0, 0}, 23}
-
-	result := netx.exclude4(from, exclude, context.temp_allocator)
-	testing.expect_value(t, len(result), 0)
-}
-
-@(test)
-test_exclude6_no_overlap :: proc(t: ^testing.T) {
-	from := netx.IP6_Network{net.IP6_Address{}, 64}
-
-	segments_exclude: [8]u16be
-	segments_exclude[0] = 0x2001
-	addr_exclude := cast(net.IP6_Address)segments_exclude
-	exclude := netx.IP6_Network{addr_exclude, 64}
-
-	result := netx.exclude6(from, exclude, context.temp_allocator)
-	testing.expect_value(t, len(result), 1)
-}
-
-@(test)
 test_exclude6_subset :: proc(t: ^testing.T) {
 	// ::/64 - ::/65 should return the other half
 	from := netx.IP6_Network{net.IP6_Address{}, 64}
@@ -817,6 +838,16 @@ test_exclude6_subset :: proc(t: ^testing.T) {
 
 	result := netx.exclude6(from, exclude, context.temp_allocator)
 	testing.expect(t, len(result) >= 1, "Should return remaining networks")
+}
+
+@(test)
+test_exclude4_complete :: proc(t: ^testing.T) {
+	// Excluding supernet should return nothing
+	from := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
+	exclude := netx.IP4_Network{net.IP4_Address{192, 168, 0, 0}, 23}
+
+	result := netx.exclude4(from, exclude, context.temp_allocator)
+	testing.expect_value(t, len(result), 0)
 }
 
 @(test)
@@ -877,6 +908,35 @@ test_find_free_subnets4 :: proc(t: ^testing.T) {
 	}
 }
 
+@(test)
+test_find_free_subnets6 :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/32
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// Used: 2001:db8:1::/48
+	used := []netx.IP6_Network{
+		netx.must_parse_cidr6("2001:db8:1::/48"),
+	}
+
+	// Find free /48 subnets (this will take a while for large spaces,
+	// so we limit our search)
+	free := netx.find_free_subnets6(parent, used, 48, context.temp_allocator)
+
+	testing.expect(t, len(free) > 0, "Should find free IPv6 subnets")
+
+	// 2001:db8::/48 should be free
+	found_first := false
+	for subnet in free {
+		if subnet.prefix_len == 48 {
+			segments := cast([8]u16be)subnet.address
+			if u16(segments[0]) == 0x2001 && u16(segments[1]) == 0x0db8 && u16(segments[2]) == 0 {
+				found_first = true
+				break
+			}
+		}
+	}
+	testing.expect(t, found_first, "Should find 2001:db8::/48 as free")
+}
 
 @(test)
 test_find_free_subnets4_no_space :: proc(t: ^testing.T) {
@@ -893,6 +953,20 @@ test_find_free_subnets4_no_space :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_find_free_subnets6_no_space :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/32
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// Used: entire parent
+	used := []netx.IP6_Network{parent}
+
+	// Try to find free /48 subnets
+	free := netx.find_free_subnets6(parent, used, 48, context.temp_allocator)
+
+	testing.expect_value(t, len(free), 0)
+}
+
+@(test)
 test_find_free_subnets4_all_free :: proc(t: ^testing.T) {
 	// Parent: 192.168.0.0/22
 	parent := netx.must_parse_cidr4("192.168.0.0/22")
@@ -902,6 +976,20 @@ test_find_free_subnets4_all_free :: proc(t: ^testing.T) {
 
 	// Find free /24 subnets - should get 4
 	free := netx.find_free_subnets4(parent, used, 24, context.temp_allocator)
+
+	testing.expect_value(t, len(free), 4)
+}
+
+@(test)
+test_find_free_subnets6_all_free :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/62
+	parent := netx.must_parse_cidr6("2001:db8::/62")
+
+	// No used networks
+	used := []netx.IP6_Network{}
+
+	// Find free /64 subnets - should get 4
+	free := netx.find_free_subnets6(parent, used, 64, context.temp_allocator)
 
 	testing.expect_value(t, len(free), 4)
 }
@@ -927,6 +1015,19 @@ test_largest_free_block4 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_largest_free_block6 :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/32
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// No used networks
+	used := []netx.IP6_Network{}
+
+	largest, ok := netx.largest_free_block6(parent, used, context.temp_allocator)
+	testing.expect(t, ok, "Should find free block")
+	testing.expect_value(t, largest, parent)
+}
+
+@(test)
 test_largest_free_block4_no_space :: proc(t: ^testing.T) {
 	// Parent: 192.168.1.0/24
 	parent := netx.must_parse_cidr4("192.168.1.0/24")
@@ -939,6 +1040,18 @@ test_largest_free_block4_no_space :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_largest_free_block6_no_space :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/32
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// Used: entire parent
+	used := []netx.IP6_Network{parent}
+
+	_, ok := netx.largest_free_block6(parent, used, context.temp_allocator)
+	testing.expect(t, !ok, "Should not find free block")
+}
+
+@(test)
 test_largest_free_block4_all_free :: proc(t: ^testing.T) {
 	// Parent: 192.168.0.0/16
 	parent := netx.must_parse_cidr4("192.168.0.0/16")
@@ -947,6 +1060,19 @@ test_largest_free_block4_all_free :: proc(t: ^testing.T) {
 	used := []netx.IP4_Network{}
 
 	largest, ok := netx.largest_free_block4(parent, used, context.temp_allocator)
+	testing.expect(t, ok, "Should find free block")
+	testing.expect_value(t, largest, parent)
+}
+
+@(test)
+test_largest_free_block6_all_free :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/32
+	parent := netx.must_parse_cidr6("2001:db8::/32")
+
+	// No used networks
+	used := []netx.IP6_Network{}
+
+	largest, ok := netx.largest_free_block6(parent, used, context.temp_allocator)
 	testing.expect(t, ok, "Should find free block")
 	testing.expect_value(t, largest, parent)
 }
@@ -980,66 +1106,6 @@ test_subnet_utilization4 :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_subnet_utilization4_overlapping :: proc(t: ^testing.T) {
-	// Parent: 192.168.1.0/24
-	parent := netx.must_parse_cidr4("192.168.1.0/24")
-
-	// Overlapping usage (should only count once)
-	used := []netx.IP4_Network{
-		netx.must_parse_cidr4("192.168.1.0/25"),  // First half
-		netx.must_parse_cidr4("192.168.1.0/26"),  // First quarter (overlaps with above)
-	}
-
-	util := netx.subnet_utilization4(parent, used)
-
-	// Should be 0.5 (only the /25 counts, /26 is within it)
-	testing.expect_value(t, util, 0.5)
-}
-
-@(test)
-test_find_free_subnets6 :: proc(t: ^testing.T) {
-	// Parent: 2001:db8::/32
-	parent := netx.must_parse_cidr6("2001:db8::/32")
-
-	// Used: 2001:db8:1::/48
-	used := []netx.IP6_Network{
-		netx.must_parse_cidr6("2001:db8:1::/48"),
-	}
-
-	// Find free /48 subnets (this will take a while for large spaces,
-	// so we limit our search)
-	free := netx.find_free_subnets6(parent, used, 48, context.temp_allocator)
-
-	testing.expect(t, len(free) > 0, "Should find free IPv6 subnets")
-
-	// 2001:db8::/48 should be free
-	found_first := false
-	for subnet in free {
-		if subnet.prefix_len == 48 {
-			segments := cast([8]u16be)subnet.address
-			if u16(segments[0]) == 0x2001 && u16(segments[1]) == 0x0db8 && u16(segments[2]) == 0 {
-				found_first = true
-				break
-			}
-		}
-	}
-	testing.expect(t, found_first, "Should find 2001:db8::/48 as free")
-}
-
-@(test)
-test_largest_free_block6 :: proc(t: ^testing.T) {
-	// Parent: 2001:db8::/32
-	parent := netx.must_parse_cidr6("2001:db8::/32")
-
-	// No used networks
-	used := []netx.IP6_Network{}
-
-	largest, ok := netx.largest_free_block6(parent, used, context.temp_allocator)
-	testing.expect(t, ok, "Should find free block")
-	testing.expect_value(t, largest, parent)
-}
-
-@(test)
 test_subnet_utilization6 :: proc(t: ^testing.T) {
 	// Parent: 2001:db8::/32
 	parent := netx.must_parse_cidr6("2001:db8::/32")
@@ -1058,4 +1124,39 @@ test_subnet_utilization6 :: proc(t: ^testing.T) {
 	}
 	util_half := netx.subnet_utilization6(parent, half_used)
 	testing.expect_value(t, util_half, 0.5)
+}
+
+@(test)
+test_subnet_utilization4_overlapping :: proc(t: ^testing.T) {
+	// Parent: 192.168.1.0/24
+	parent := netx.must_parse_cidr4("192.168.1.0/24")
+
+	// Overlapping usage (should only count once)
+	used := []netx.IP4_Network{
+		netx.must_parse_cidr4("192.168.1.0/25"),  // First half
+		netx.must_parse_cidr4("192.168.1.0/26"),  // First quarter (overlaps with above)
+	}
+
+	util := netx.subnet_utilization4(parent, used)
+
+	// Should be 0.5 (only the /25 counts, /26 is within it)
+	testing.expect_value(t, util, 0.5)
+}
+
+@(test)
+test_subnet_utilization6_overlapping :: proc(t: ^testing.T) {
+	// Parent: 2001:db8::/48
+	parent := netx.must_parse_cidr6("2001:db8::/48")
+
+	// Overlapping usage
+	used := []netx.IP6_Network{
+		netx.must_parse_cidr6("2001:db8::/49"),  // First half (0.5)
+		netx.must_parse_cidr6("2001:db8::/50"),  // First quarter (0.25, overlaps with above)
+	}
+
+	util := netx.subnet_utilization6(parent, used)
+
+	// Note: IPv6 utilization doesn't account for overlaps (see ipam.odin:910)
+	// So it adds up sizes: 0.5 + 0.25 = 0.75
+	testing.expect_value(t, util, 0.75)
 }

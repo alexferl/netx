@@ -43,57 +43,8 @@ test_parse_cidr4 :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_addr_to_string4 :: proc(t: ^testing.T) {
-	// Test standard address
-	addr1 := net.IP4_Address{192, 168, 1, 100}
-	str1 := netx.addr_to_string4(addr1, context.temp_allocator)
-	testing.expect_value(t, str1, "192.168.1.100")
-
-	// Test zeros
-	addr2 := net.IP4_Address{0, 0, 0, 0}
-	str2 := netx.addr_to_string4(addr2, context.temp_allocator)
-	testing.expect_value(t, str2, "0.0.0.0")
-
-	// Test broadcast
-	addr3 := net.IP4_Address{255, 255, 255, 255}
-	str3 := netx.addr_to_string4(addr3, context.temp_allocator)
-	testing.expect_value(t, str3, "255.255.255.255")
-
-	// Test loopback
-	addr4 := net.IP4_Address{127, 0, 0, 1}
-	str4 := netx.addr_to_string4(addr4, context.temp_allocator)
-	testing.expect_value(t, str4, "127.0.0.1")
-
-	// Test public DNS
-	addr5 := net.IP4_Address{8, 8, 8, 8}
-	str5 := netx.addr_to_string4(addr5, context.temp_allocator)
-	testing.expect_value(t, str5, "8.8.8.8")
-}
-
-
-@(test)
-test_network_to_string4 :: proc(t: ^testing.T) {
-	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
-	str := netx.network_to_string4(network, context.temp_allocator)
-	testing.expect_value(t, str, "192.168.1.0/24")
-
-	network32 := netx.IP4_Network{net.IP4_Address{8, 8, 8, 8}, 32}
-	str32 := netx.network_to_string4(network32, context.temp_allocator)
-	testing.expect_value(t, str32, "8.8.8.8/32")
-}
-
-@(test)
-test_masked4 :: proc(t: ^testing.T) {
-	// Network with host bits set
-	dirty := netx.IP4_Network{net.IP4_Address{192, 168, 1, 100}, 24}
-	clean := netx.masked4(dirty)
-	testing.expect_value(t, clean.address, net.IP4_Address{192, 168, 1, 0})
-	testing.expect_value(t, clean.prefix_len, u8(24))
-}
-
-@(test)
 test_parse_cidr6 :: proc(t: ^testing.T) {
-	// Valid CIDR
+// Valid CIDR
 	network, ok := netx.parse_cidr6("2001:db8::/32")
 	testing.expect(t, ok, "Should parse valid CIDR")
 	testing.expect_value(t, network.prefix_len, u8(32))
@@ -125,8 +76,36 @@ test_parse_cidr6 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_addr_to_string4 :: proc(t: ^testing.T) {
+	// Test standard address
+	addr1 := net.IP4_Address{192, 168, 1, 100}
+	str1 := netx.addr_to_string4(addr1, context.temp_allocator)
+	testing.expect_value(t, str1, "192.168.1.100")
+
+	// Test zeros
+	addr2 := net.IP4_Address{0, 0, 0, 0}
+	str2 := netx.addr_to_string4(addr2, context.temp_allocator)
+	testing.expect_value(t, str2, "0.0.0.0")
+
+	// Test broadcast
+	addr3 := net.IP4_Address{255, 255, 255, 255}
+	str3 := netx.addr_to_string4(addr3, context.temp_allocator)
+	testing.expect_value(t, str3, "255.255.255.255")
+
+	// Test loopback
+	addr4 := net.IP4_Address{127, 0, 0, 1}
+	str4 := netx.addr_to_string4(addr4, context.temp_allocator)
+	testing.expect_value(t, str4, "127.0.0.1")
+
+	// Test public DNS
+	addr5 := net.IP4_Address{8, 8, 8, 8}
+	str5 := netx.addr_to_string4(addr5, context.temp_allocator)
+	testing.expect_value(t, str5, "8.8.8.8")
+}
+
+@(test)
 test_addr_to_string6 :: proc(t: ^testing.T) {
-	// Test loopback (::1)
+// Test loopback (::1)
 	loopback := netx.ipv6_loopback()
 	str_loopback := netx.addr_to_string6(loopback, context.temp_allocator)
 	testing.expect_value(t, str_loopback, "::1")
@@ -171,6 +150,17 @@ test_addr_to_string6 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_network_to_string4 :: proc(t: ^testing.T) {
+	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
+	str := netx.network_to_string4(network, context.temp_allocator)
+	testing.expect_value(t, str, "192.168.1.0/24")
+
+	network32 := netx.IP4_Network{net.IP4_Address{8, 8, 8, 8}, 32}
+	str32 := netx.network_to_string4(network32, context.temp_allocator)
+	testing.expect_value(t, str32, "8.8.8.8/32")
+}
+
+@(test)
 test_network_to_string6 :: proc(t: ^testing.T) {
 	segments: [8]u16be
 	segments[0] = 0x2001
@@ -180,6 +170,15 @@ test_network_to_string6 :: proc(t: ^testing.T) {
 	network := netx.IP6_Network{addr, 32}
 	str := netx.network_to_string6(network, context.temp_allocator)
 	testing.expect_value(t, str, "2001:db8::/32")
+}
+
+@(test)
+test_masked4 :: proc(t: ^testing.T) {
+	// Network with host bits set
+	dirty := netx.IP4_Network{net.IP4_Address{192, 168, 1, 100}, 24}
+	clean := netx.masked4(dirty)
+	testing.expect_value(t, clean.address, net.IP4_Address{192, 168, 1, 0})
+	testing.expect_value(t, clean.prefix_len, u8(24))
 }
 
 @(test)
@@ -237,33 +236,8 @@ test_prefix_to_mask4 :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_mask4_to_prefix :: proc(t: ^testing.T) {
-	// Test standard masks
-	prefix24, ok24 := netx.mask4_to_prefix([4]u8{255, 255, 255, 0})
-	testing.expect(t, ok24, "mask4_to_prefix should succeed")
-	testing.expect_value(t, prefix24, u8(24))
-
-	prefix16, ok16 := netx.mask4_to_prefix([4]u8{255, 255, 0, 0})
-	testing.expect(t, ok16, "mask4_to_prefix should succeed")
-	testing.expect_value(t, prefix16, u8(16))
-
-	prefix8, ok8 := netx.mask4_to_prefix([4]u8{255, 0, 0, 0})
-	testing.expect(t, ok8, "mask4_to_prefix should succeed")
-	testing.expect_value(t, prefix8, u8(8))
-}
-
-@(test)
-test_apply_mask4 :: proc(t: ^testing.T) {
-	addr := net.IP4_Address{192, 168, 1, 100}
-	mask := [4]u8{255, 255, 255, 0}
-
-	result := netx.apply_mask4(addr, mask)
-	testing.expect_value(t, result, net.IP4_Address{192, 168, 1, 0})
-}
-
-@(test)
 test_prefix_to_mask6 :: proc(t: ^testing.T) {
-	// Test /64
+// Test /64
 	mask64 := netx.prefix_to_mask6(64)
 	for i in 0..<4 {
 		testing.expect_value(t, u16(mask64[i]), u16(0xFFFF))
@@ -313,6 +287,22 @@ test_prefix_to_mask6 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_mask4_to_prefix :: proc(t: ^testing.T) {
+	// Test standard masks
+	prefix24, ok24 := netx.mask4_to_prefix([4]u8{255, 255, 255, 0})
+	testing.expect(t, ok24, "mask4_to_prefix should succeed")
+	testing.expect_value(t, prefix24, u8(24))
+
+	prefix16, ok16 := netx.mask4_to_prefix([4]u8{255, 255, 0, 0})
+	testing.expect(t, ok16, "mask4_to_prefix should succeed")
+	testing.expect_value(t, prefix16, u8(16))
+
+	prefix8, ok8 := netx.mask4_to_prefix([4]u8{255, 0, 0, 0})
+	testing.expect(t, ok8, "mask4_to_prefix should succeed")
+	testing.expect_value(t, prefix8, u8(8))
+}
+
+@(test)
 test_mask6_to_prefix :: proc(t: ^testing.T) {
 	// Test /64
 	mask64: [8]u16be
@@ -354,6 +344,15 @@ test_mask6_to_prefix :: proc(t: ^testing.T) {
 	prefix48, ok48 := netx.mask6_to_prefix(mask48)
 	testing.expect(t, ok48, "mask6_to_prefix should succeed")
 	testing.expect_value(t, prefix48, u8(48))
+}
+
+@(test)
+test_apply_mask4 :: proc(t: ^testing.T) {
+	addr := net.IP4_Address{192, 168, 1, 100}
+	mask := [4]u8{255, 255, 255, 0}
+
+	result := netx.apply_mask4(addr, mask)
+	testing.expect_value(t, result, net.IP4_Address{192, 168, 1, 0})
 }
 
 @(test)
@@ -403,46 +402,6 @@ test_is_private4 :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_is_loopback4 :: proc(t: ^testing.T) {
-	testing.expect(t, netx.is_loopback4(net.IP4_Address{127, 0, 0, 1}), "127.0.0.1 is loopback")
-	testing.expect(t, netx.is_loopback4(net.IP4_Address{127, 255, 255, 255}), "127.255.255.255 is loopback")
-	testing.expect(t, !netx.is_loopback4(net.IP4_Address{128, 0, 0, 1}), "128.0.0.1 is not loopback")
-}
-
-@(test)
-test_is_link_local4 :: proc(t: ^testing.T) {
-	testing.expect(t, netx.is_link_local4(net.IP4_Address{169, 254, 0, 1}), "169.254/16 is link-local")
-	testing.expect(t, !netx.is_link_local4(net.IP4_Address{169, 253, 0, 1}), "169.253 is not link-local")
-}
-
-@(test)
-test_is_multicast4 :: proc(t: ^testing.T) {
-	testing.expect(t, netx.is_multicast4(net.IP4_Address{224, 0, 0, 1}), "224.0.0.1 is multicast")
-	testing.expect(t, netx.is_multicast4(net.IP4_Address{239, 255, 255, 255}), "239.255.255.255 is multicast")
-	testing.expect(t, !netx.is_multicast4(net.IP4_Address{223, 0, 0, 1}), "223.0.0.1 is not multicast")
-}
-
-@(test)
-test_is_unspecified4 :: proc(t: ^testing.T) {
-	testing.expect(t, netx.is_unspecified4(net.IP4_Address{0, 0, 0, 0}), "0.0.0.0 is unspecified")
-	testing.expect(t, !netx.is_unspecified4(net.IP4_Address{0, 0, 0, 1}), "0.0.0.1 is not unspecified")
-}
-
-@(test)
-test_is_broadcast4 :: proc(t: ^testing.T) {
-	testing.expect(t, netx.is_broadcast4(net.IP4_Address{255, 255, 255, 255}), "255.255.255.255 is broadcast")
-	testing.expect(t, !netx.is_broadcast4(net.IP4_Address{255, 255, 255, 254}), "255.255.255.254 is not broadcast")
-}
-
-@(test)
-test_is_global_unicast4 :: proc(t: ^testing.T) {
-	testing.expect(t, netx.is_global_unicast4(net.IP4_Address{8, 8, 8, 8}), "8.8.8.8 is global unicast")
-	testing.expect(t, netx.is_global_unicast4(net.IP4_Address{1, 1, 1, 1}), "1.1.1.1 is global unicast")
-	testing.expect(t, !netx.is_global_unicast4(net.IP4_Address{192, 168, 1, 1}), "192.168.1.1 is not global")
-	testing.expect(t, !netx.is_global_unicast4(net.IP4_Address{127, 0, 0, 1}), "127.0.0.1 is not global")
-}
-
-@(test)
 test_is_private6 :: proc(t: ^testing.T) {
 	// Private/ULA range (fc00::/7)
 	segments_private: [8]u16be
@@ -460,6 +419,13 @@ test_is_private6 :: proc(t: ^testing.T) {
 	segments_public[0] = 0x2001
 	public_addr := cast(net.IP6_Address)segments_public
 	testing.expect(t, !netx.is_private6(public_addr), "2001:: is not private")
+}
+
+@(test)
+test_is_loopback4 :: proc(t: ^testing.T) {
+	testing.expect(t, netx.is_loopback4(net.IP4_Address{127, 0, 0, 1}), "127.0.0.1 is loopback")
+	testing.expect(t, netx.is_loopback4(net.IP4_Address{127, 255, 255, 255}), "127.255.255.255 is loopback")
+	testing.expect(t, !netx.is_loopback4(net.IP4_Address{128, 0, 0, 1}), "128.0.0.1 is not loopback")
 }
 
 @(test)
@@ -485,6 +451,11 @@ test_is_loopback6 :: proc(t: ^testing.T) {
 	testing.expect(t, !netx.is_loopback6(other), "2001:: is not loopback")
 }
 
+@(test)
+test_is_link_local4 :: proc(t: ^testing.T) {
+	testing.expect(t, netx.is_link_local4(net.IP4_Address{169, 254, 0, 1}), "169.254/16 is link-local")
+	testing.expect(t, !netx.is_link_local4(net.IP4_Address{169, 253, 0, 1}), "169.253 is not link-local")
+}
 
 @(test)
 test_is_link_local6 :: proc(t: ^testing.T) {
@@ -502,6 +473,13 @@ test_is_link_local6 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_is_multicast4 :: proc(t: ^testing.T) {
+	testing.expect(t, netx.is_multicast4(net.IP4_Address{224, 0, 0, 1}), "224.0.0.1 is multicast")
+	testing.expect(t, netx.is_multicast4(net.IP4_Address{239, 255, 255, 255}), "239.255.255.255 is multicast")
+	testing.expect(t, !netx.is_multicast4(net.IP4_Address{223, 0, 0, 1}), "223.0.0.1 is not multicast")
+}
+
+@(test)
 test_is_multicast6 :: proc(t: ^testing.T) {
 	// Multicast (ff00::/8)
 	segments: [8]u16be
@@ -514,6 +492,12 @@ test_is_multicast6 :: proc(t: ^testing.T) {
 	segments2[0] = 0xfe80
 	addr2 := cast(net.IP6_Address)segments2
 	testing.expect(t, !netx.is_multicast6(addr2), "fe80:: is not multicast")
+}
+
+@(test)
+test_is_unspecified4 :: proc(t: ^testing.T) {
+	testing.expect(t, netx.is_unspecified4(net.IP4_Address{0, 0, 0, 0}), "0.0.0.0 is unspecified")
+	testing.expect(t, !netx.is_unspecified4(net.IP4_Address{0, 0, 0, 1}), "0.0.0.1 is not unspecified")
 }
 
 @(test)
@@ -537,6 +521,20 @@ test_is_unspecified6 :: proc(t: ^testing.T) {
 	segments_last[7] = 0x0001
 	addr_last := cast(net.IP6_Address)segments_last
 	testing.expect(t, !netx.is_unspecified6(addr_last), "::1 is not unspecified")
+}
+
+@(test)
+test_is_broadcast4 :: proc(t: ^testing.T) {
+	testing.expect(t, netx.is_broadcast4(net.IP4_Address{255, 255, 255, 255}), "255.255.255.255 is broadcast")
+	testing.expect(t, !netx.is_broadcast4(net.IP4_Address{255, 255, 255, 254}), "255.255.255.254 is not broadcast")
+}
+
+@(test)
+test_is_global_unicast4 :: proc(t: ^testing.T) {
+	testing.expect(t, netx.is_global_unicast4(net.IP4_Address{8, 8, 8, 8}), "8.8.8.8 is global unicast")
+	testing.expect(t, netx.is_global_unicast4(net.IP4_Address{1, 1, 1, 1}), "1.1.1.1 is global unicast")
+	testing.expect(t, !netx.is_global_unicast4(net.IP4_Address{192, 168, 1, 1}), "192.168.1.1 is not global")
+	testing.expect(t, !netx.is_global_unicast4(net.IP4_Address{127, 0, 0, 1}), "127.0.0.1 is not global")
 }
 
 @(test)
@@ -635,18 +633,6 @@ test_contains4 :: proc(t: ^testing.T) {
 	testing.expect(t, !netx.contains4(network, net.IP4_Address{10, 0, 0, 1}), "Should not contain 10.0.0.1")
 }
 
-
-@(test)
-test_overlaps4 :: proc(t: ^testing.T) {
-	net_a := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
-	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 1, 128}, 25}
-	net_c := netx.IP4_Network{net.IP4_Address{192, 168, 2, 0}, 24}
-
-	testing.expect(t, netx.overlaps4(net_a, net_b), "192.168.1.0/24 overlaps 192.168.1.128/25")
-	testing.expect(t, netx.overlaps4(net_b, net_a), "Overlap is symmetric")
-	testing.expect(t, !netx.overlaps4(net_a, net_c), "192.168.1.0/24 doesn't overlap 192.168.2.0/24")
-}
-
 @(test)
 test_contains6 :: proc(t: ^testing.T) {
 	// 2001:db8::/32
@@ -670,6 +656,17 @@ test_contains6 :: proc(t: ^testing.T) {
 	segments_out[1] = 0x0db9
 	addr_out := cast(net.IP6_Address)segments_out
 	testing.expect(t, !netx.contains6(network, addr_out), "Should not contain 2001:db9::")
+}
+
+@(test)
+test_overlaps4 :: proc(t: ^testing.T) {
+	net_a := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
+	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 1, 128}, 25}
+	net_c := netx.IP4_Network{net.IP4_Address{192, 168, 2, 0}, 24}
+
+	testing.expect(t, netx.overlaps4(net_a, net_b), "192.168.1.0/24 overlaps 192.168.1.128/25")
+	testing.expect(t, netx.overlaps4(net_b, net_a), "Overlap is symmetric")
+	testing.expect(t, !netx.overlaps4(net_a, net_c), "192.168.1.0/24 doesn't overlap 192.168.2.0/24")
 }
 
 @(test)
@@ -708,21 +705,40 @@ test_overlaps6 :: proc(t: ^testing.T) {
 test_network_range4 :: proc(t: ^testing.T) {
 	// Test /24
 	network24 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
-	first24, last24 := netx.network_range4(network24)
-	testing.expect_value(t, first24, net.IP4_Address{192, 168, 1, 0})
-	testing.expect_value(t, last24, net.IP4_Address{192, 168, 1, 255})
+	range24 := netx.network_range4(network24)
+	testing.expect_value(t, range24.start, net.IP4_Address{192, 168, 1, 0})
+	testing.expect_value(t, range24.end, net.IP4_Address{192, 168, 1, 255})
 
 	// Test /16
 	network16 := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 16}
-	first16, last16 := netx.network_range4(network16)
-	testing.expect_value(t, first16, net.IP4_Address{10, 0, 0, 0})
-	testing.expect_value(t, last16, net.IP4_Address{10, 0, 255, 255})
+	range16 := netx.network_range4(network16)
+	testing.expect_value(t, range16.start, net.IP4_Address{10, 0, 0, 0})
+	testing.expect_value(t, range16.end, net.IP4_Address{10, 0, 255, 255})
 
 	// Test /32 (single host)
 	network32 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 1}, 32}
-	first32, last32 := netx.network_range4(network32)
-	testing.expect_value(t, first32, net.IP4_Address{192, 168, 1, 1})
-	testing.expect_value(t, last32, net.IP4_Address{192, 168, 1, 1})
+	range32 := netx.network_range4(network32)
+	testing.expect_value(t, range32.start, net.IP4_Address{192, 168, 1, 1})
+	testing.expect_value(t, range32.end, net.IP4_Address{192, 168, 1, 1})
+}
+
+@(test)
+test_network_range6 :: proc(t: ^testing.T) {
+	// Test /64
+	segments: [8]u16be
+	segments[0] = 0x2001
+	segments[1] = 0x0db8
+	addr := cast(net.IP6_Address)segments
+	network := netx.IP6_Network{addr, 64}
+
+	range := netx.network_range6(network)
+
+	first_segments := cast([8]u16be)range.start
+	testing.expect_value(t, u16(first_segments[0]), u16(0x2001))
+	testing.expect_value(t, u16(first_segments[1]), u16(0x0db8))
+
+	last_segments := cast([8]u16be)range.end
+	testing.expect_value(t, u16(last_segments[7]), u16(0xffff))
 }
 
 @(test)
@@ -749,52 +765,6 @@ test_host_count4 :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_usable_host_range4 :: proc(t: ^testing.T) {
-	// /24
-	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
-	first, last, ok := netx.usable_host_range4(network)
-	testing.expect(t, ok, "Should succeed for /24")
-	testing.expect_value(t, first, net.IP4_Address{192, 168, 1, 1})
-	testing.expect_value(t, last, net.IP4_Address{192, 168, 1, 254})
-
-	// /30
-	network30 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 30}
-	first30, last30, ok30 := netx.usable_host_range4(network30)
-	testing.expect(t, ok30, "Should succeed for /30")
-	testing.expect_value(t, first30, net.IP4_Address{192, 168, 1, 1})
-	testing.expect_value(t, last30, net.IP4_Address{192, 168, 1, 2})
-
-	// /31 (no usable range)
-	network31 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 31}
-	_, _, ok31 := netx.usable_host_range4(network31)
-	testing.expect(t, !ok31, "Should fail for /31")
-
-	// /32 (no usable range)
-	network32 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 1}, 32}
-	_, _, ok32 := netx.usable_host_range4(network32)
-	testing.expect(t, !ok32, "Should fail for /32")
-}
-
-@(test)
-test_network_range6 :: proc(t: ^testing.T) {
-	// Test /64
-	segments: [8]u16be
-	segments[0] = 0x2001
-	segments[1] = 0x0db8
-	addr := cast(net.IP6_Address)segments
-	network := netx.IP6_Network{addr, 64}
-
-	first, last := netx.network_range6(network)
-
-	first_segments := cast([8]u16be)first
-	testing.expect_value(t, u16(first_segments[0]), u16(0x2001))
-	testing.expect_value(t, u16(first_segments[1]), u16(0x0db8))
-
-	last_segments := cast([8]u16be)last
-	testing.expect_value(t, u16(last_segments[7]), u16(0xffff))
-}
-
-@(test)
 test_host_count6 :: proc(t: ^testing.T) {
 	// /64
 	network64 := netx.IP6_Network{netx.ipv6_unspecified(), 64}
@@ -811,25 +781,269 @@ test_host_count6 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_usable_host_range4 :: proc(t: ^testing.T) {
+	// /24
+	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
+	range, ok := netx.usable_host_range4(network)
+	testing.expect(t, ok, "Should succeed for /24")
+	testing.expect_value(t, range.start, net.IP4_Address{192, 168, 1, 1})
+	testing.expect_value(t, range.end, net.IP4_Address{192, 168, 1, 254})
+
+	// /30
+	network30 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 30}
+	range30, ok30 := netx.usable_host_range4(network30)
+	testing.expect(t, ok30, "Should succeed for /30")
+	testing.expect_value(t, range30.start, net.IP4_Address{192, 168, 1, 1})
+	testing.expect_value(t, range30.end, net.IP4_Address{192, 168, 1, 2})
+
+	// /31 (no usable range)
+	network31 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 31}
+	_, ok31 := netx.usable_host_range4(network31)
+	testing.expect(t, !ok31, "Should fail for /31")
+
+	// /32 (no usable range)
+	network32 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 1}, 32}
+	_, ok32 := netx.usable_host_range4(network32)
+	testing.expect(t, !ok32, "Should fail for /32")
+}
+
+@(test)
 test_usable_host_range6 :: proc(t: ^testing.T) {
 	// /64
 	network := netx.IP6_Network{netx.ipv6_unspecified(), 64}
-	first, _, ok := netx.usable_host_range6(network)
+	range, ok := netx.usable_host_range6(network)
 	testing.expect(t, ok, "Should succeed for /64")
 
 	// First should be ::1
-	first_segments := cast([8]u16be)first
+	first_segments := cast([8]u16be)range.start
 	testing.expect_value(t, u16(first_segments[7]), u16(1))
 
 	// /127 (no usable range)
 	network127 := netx.IP6_Network{netx.ipv6_unspecified(), 127}
-	_, _, ok127 := netx.usable_host_range6(network127)
+	_, ok127 := netx.usable_host_range6(network127)
 	testing.expect(t, !ok127, "Should fail for /127")
 
 	// /128 (no usable range)
 	network128 := netx.IP6_Network{netx.ipv6_unspecified(), 128}
-	_, _, ok128 := netx.usable_host_range6(network128)
+	_, ok128 := netx.usable_host_range6(network128)
 	testing.expect(t, !ok128, "Should fail for /128")
+}
+
+@(test)
+test_range_contains4 :: proc(t: ^testing.T) {
+	range := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 10},
+		end = net.IP4_Address{192, 168, 1, 20},
+	}
+
+	// Test address in range
+	testing.expect(t, netx.range_contains4(range, net.IP4_Address{192, 168, 1, 15}), "Should contain middle address")
+	testing.expect(t, netx.range_contains4(range, net.IP4_Address{192, 168, 1, 10}), "Should contain start address")
+	testing.expect(t, netx.range_contains4(range, net.IP4_Address{192, 168, 1, 20}), "Should contain end address")
+
+	// Test address outside range
+	testing.expect(t, !netx.range_contains4(range, net.IP4_Address{192, 168, 1, 9}), "Should not contain address before start")
+	testing.expect(t, !netx.range_contains4(range, net.IP4_Address{192, 168, 1, 21}), "Should not contain address after end")
+	testing.expect(t, !netx.range_contains4(range, net.IP4_Address{192, 168, 2, 15}), "Should not contain address in different subnet")
+}
+
+@(test)
+test_range_contains6 :: proc(t: ^testing.T) {
+	start_segments: [8]u16be
+	start_segments[0] = 0x2001
+	start_segments[1] = 0x0db8
+	start_segments[7] = 10
+
+	end_segments: [8]u16be
+	end_segments[0] = 0x2001
+	end_segments[1] = 0x0db8
+	end_segments[7] = 20
+
+	range := netx.IP6_Range{
+		start = cast(net.IP6_Address)start_segments,
+		end = cast(net.IP6_Address)end_segments,
+	}
+
+	mid_segments: [8]u16be
+	mid_segments[0] = 0x2001
+	mid_segments[1] = 0x0db8
+	mid_segments[7] = 15
+
+	// Test address in range
+	testing.expect(t, netx.range_contains6(range, cast(net.IP6_Address)mid_segments), "Should contain middle address")
+	testing.expect(t, netx.range_contains6(range, range.start), "Should contain start address")
+	testing.expect(t, netx.range_contains6(range, range.end), "Should contain end address")
+
+	// Test address outside range
+	before_segments: [8]u16be
+	before_segments[0] = 0x2001
+	before_segments[1] = 0x0db8
+	before_segments[7] = 9
+	testing.expect(t, !netx.range_contains6(range, cast(net.IP6_Address)before_segments), "Should not contain address before start")
+}
+
+@(test)
+test_range_overlaps4 :: proc(t: ^testing.T) {
+	range_a := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 10},
+		end = net.IP4_Address{192, 168, 1, 20},
+	}
+
+	// Overlapping ranges
+	range_overlap := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 15},
+		end = net.IP4_Address{192, 168, 1, 25},
+	}
+	testing.expect(t, netx.range_overlaps4(range_a, range_overlap), "Should detect overlap")
+	testing.expect(t, netx.range_overlaps4(range_overlap, range_a), "Should detect overlap (reversed)")
+
+	// Adjacent ranges (touching at boundary)
+	range_adjacent := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 21},
+		end = net.IP4_Address{192, 168, 1, 30},
+	}
+	testing.expect(t, !netx.range_overlaps4(range_a, range_adjacent), "Should not detect overlap for adjacent ranges")
+
+	// Contained range
+	range_contained := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 12},
+		end = net.IP4_Address{192, 168, 1, 18},
+	}
+	testing.expect(t, netx.range_overlaps4(range_a, range_contained), "Should detect overlap for contained range")
+
+	// Non-overlapping ranges
+	range_separate := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 30},
+		end = net.IP4_Address{192, 168, 1, 40},
+	}
+	testing.expect(t, !netx.range_overlaps4(range_a, range_separate), "Should not detect overlap for separate ranges")
+}
+
+@(test)
+test_range_overlaps6 :: proc(t: ^testing.T) {
+	start_a: [8]u16be
+	start_a[0] = 0x2001
+	start_a[1] = 0x0db8
+	start_a[7] = 10
+
+	end_a: [8]u16be
+	end_a[0] = 0x2001
+	end_a[1] = 0x0db8
+	end_a[7] = 20
+
+	range_a := netx.IP6_Range{
+		start = cast(net.IP6_Address)start_a,
+		end = cast(net.IP6_Address)end_a,
+	}
+
+	// Overlapping range
+	start_b: [8]u16be
+	start_b[0] = 0x2001
+	start_b[1] = 0x0db8
+	start_b[7] = 15
+
+	end_b: [8]u16be
+	end_b[0] = 0x2001
+	end_b[1] = 0x0db8
+	end_b[7] = 25
+
+	range_b := netx.IP6_Range{
+		start = cast(net.IP6_Address)start_b,
+		end = cast(net.IP6_Address)end_b,
+	}
+
+	testing.expect(t, netx.range_overlaps6(range_a, range_b), "Should detect overlap")
+}
+
+@(test)
+test_range_size4 :: proc(t: ^testing.T) {
+	// Test small range
+	range_small := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 10},
+		end = net.IP4_Address{192, 168, 1, 20},
+	}
+	testing.expect_value(t, netx.range_size4(range_small), u32(11))
+
+	// Test single address
+	range_single := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 10},
+		end = net.IP4_Address{192, 168, 1, 10},
+	}
+	testing.expect_value(t, netx.range_size4(range_single), u32(1))
+
+	// Test /24 network
+	range_24 := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 0},
+		end = net.IP4_Address{192, 168, 1, 255},
+	}
+	testing.expect_value(t, netx.range_size4(range_24), u32(256))
+
+	// Test invalid range (end < start)
+	range_invalid := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 20},
+		end = net.IP4_Address{192, 168, 1, 10},
+	}
+	testing.expect_value(t, netx.range_size4(range_invalid), u32(0))
+}
+
+@(test)
+test_range_size6 :: proc(t: ^testing.T) {
+	// Test small range
+	start: [8]u16be
+	start[0] = 0x2001
+	start[1] = 0x0db8
+	start[7] = 10
+
+	end: [8]u16be
+	end[0] = 0x2001
+	end[1] = 0x0db8
+	end[7] = 20
+
+	range := netx.IP6_Range{
+		start = cast(net.IP6_Address)start,
+		end = cast(net.IP6_Address)end,
+	}
+
+	testing.expect_value(t, netx.range_size6(range), u128(11))
+
+	// Test single address
+	range_single := netx.IP6_Range{
+		start = cast(net.IP6_Address)start,
+		end = cast(net.IP6_Address)start,
+	}
+	testing.expect_value(t, netx.range_size6(range_single), u128(1))
+}
+
+@(test)
+test_range_to_string4 :: proc(t: ^testing.T) {
+	range := netx.IP4_Range{
+		start = net.IP4_Address{192, 168, 1, 10},
+		end = net.IP4_Address{192, 168, 1, 20},
+	}
+
+	str := netx.range_to_string4(range, context.temp_allocator)
+	testing.expect_value(t, str, "192.168.1.10-192.168.1.20")
+}
+
+@(test)
+test_range_to_string6 :: proc(t: ^testing.T) {
+	start: [8]u16be
+	start[0] = 0x2001
+	start[1] = 0x0db8
+	start[7] = 10
+
+	end: [8]u16be
+	end[0] = 0x2001
+	end[1] = 0x0db8
+	end[7] = 20
+
+	range := netx.IP6_Range{
+		start = cast(net.IP6_Address)start,
+		end = cast(net.IP6_Address)end,
+	}
+
+	str := netx.range_to_string6(range, context.temp_allocator)
+	testing.expect_value(t, str, "2001:db8::a-2001:db8::14")
 }
 
 // ============================================================================
@@ -854,25 +1068,6 @@ test_next_ip4 :: proc(t: ^testing.T) {
 	addr_max := net.IP4_Address{255, 255, 255, 255}
 	_, ok_max := netx.next_ip4(addr_max)
 	testing.expect(t, !ok_max, "next_ip4 should fail at max IP")
-}
-
-@(test)
-test_prev_ip4 :: proc(t: ^testing.T) {
-	addr := net.IP4_Address{192, 168, 1, 1}
-	prev, ok := netx.prev_ip4(addr)
-	testing.expect(t, ok, "Should succeed")
-	testing.expect_value(t, prev, net.IP4_Address{192, 168, 1, 0})
-
-	// Rollover
-	addr_rollover := net.IP4_Address{192, 168, 1, 0}
-	prev_rollover, ok_rollover := netx.prev_ip4(addr_rollover)
-	testing.expect(t, ok_rollover, "Should succeed on rollover")
-	testing.expect_value(t, prev_rollover, net.IP4_Address{192, 168, 0, 255})
-
-	// Underflow
-	addr_min := net.IP4_Address{0, 0, 0, 0}
-	_, ok_min := netx.prev_ip4(addr_min)
-	testing.expect(t, !ok_min, "Should fail at min IP")
 }
 
 @(test)
@@ -906,6 +1101,25 @@ test_next_ip6 :: proc(t: ^testing.T) {
 	addr_max := cast(net.IP6_Address)segments_max
 	_, ok_max := netx.next_ip6(addr_max)
 	testing.expect(t, !ok_max, "next_ip6 should fail at max IP")
+}
+
+@(test)
+test_prev_ip4 :: proc(t: ^testing.T) {
+	addr := net.IP4_Address{192, 168, 1, 1}
+	prev, ok := netx.prev_ip4(addr)
+	testing.expect(t, ok, "Should succeed")
+	testing.expect_value(t, prev, net.IP4_Address{192, 168, 1, 0})
+
+	// Rollover
+	addr_rollover := net.IP4_Address{192, 168, 1, 0}
+	prev_rollover, ok_rollover := netx.prev_ip4(addr_rollover)
+	testing.expect(t, ok_rollover, "Should succeed on rollover")
+	testing.expect_value(t, prev_rollover, net.IP4_Address{192, 168, 0, 255})
+
+	// Underflow
+	addr_min := net.IP4_Address{0, 0, 0, 0}
+	_, ok_min := netx.prev_ip4(addr_min)
+	testing.expect(t, !ok_min, "Should fail at min IP")
 }
 
 @(test)
@@ -952,6 +1166,15 @@ test_is_single_ip4 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_is_single_ip6 :: proc(t: ^testing.T) {
+	network128 := netx.IP6_Network{netx.ipv6_loopback(), 128}
+	testing.expect(t, netx.is_single_ip6(network128), "/128 is single IP")
+
+	network64 := netx.IP6_Network{netx.ipv6_unspecified(), 64}
+	testing.expect(t, !netx.is_single_ip6(network64), "/64 is not single IP")
+}
+
+@(test)
 test_compare_addr4 :: proc(t: ^testing.T) {
 	a := net.IP4_Address{10, 0, 0, 1}
 	b := net.IP4_Address{10, 0, 0, 2}
@@ -960,47 +1183,6 @@ test_compare_addr4 :: proc(t: ^testing.T) {
 	testing.expect_value(t, netx.compare_addr4(a, b), -1)
 	testing.expect_value(t, netx.compare_addr4(b, a), 1)
 	testing.expect_value(t, netx.compare_addr4(a, c), 0)
-}
-
-@(test)
-test_compare_network4 :: proc(t: ^testing.T) {
-	net_a := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 8}
-	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 0, 0}, 16}
-	net_c := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 16}
-
-	testing.expect_value(t, netx.compare_network4(net_a, net_b), -1)
-	testing.expect_value(t, netx.compare_network4(net_a, net_c), -1)
-}
-
-@(test)
-test_less_addr4 :: proc(t: ^testing.T) {
-	a := net.IP4_Address{10, 0, 0, 1}
-	b := net.IP4_Address{10, 0, 0, 2}
-
-	testing.expect(t, netx.less_addr4(a, b))
-	testing.expect(t, !netx.less_addr4(b, a))
-	testing.expect(t, !netx.less_addr4(a, a))
-}
-
-@(test)
-test_less_network4 :: proc(t: ^testing.T) {
-	net_a := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 8}
-	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 0, 0}, 16}
-	net_c := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 16}
-
-	testing.expect(t, netx.less_network4(net_a, net_b), "10.0.0.0/8 < 192.168.0.0/16")
-	testing.expect(t, netx.less_network4(net_a, net_c), "10.0.0.0/8 < 10.0.0.0/16")
-	testing.expect(t, !netx.less_network4(net_b, net_a), "192.168.0.0/16 not < 10.0.0.0/8")
-	testing.expect(t, !netx.less_network4(net_a, net_a), "Network not < itself")
-}
-
-@(test)
-test_is_single_ip6 :: proc(t: ^testing.T) {
-	network128 := netx.IP6_Network{netx.ipv6_loopback(), 128}
-	testing.expect(t, netx.is_single_ip6(network128), "/128 is single IP")
-
-	network64 := netx.IP6_Network{netx.ipv6_unspecified(), 64}
-	testing.expect(t, !netx.is_single_ip6(network64), "/64 is not single IP")
 }
 
 @(test)
@@ -1014,12 +1196,32 @@ test_compare_addr6 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_compare_network4 :: proc(t: ^testing.T) {
+	net_a := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 8}
+	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 0, 0}, 16}
+	net_c := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 16}
+
+	testing.expect_value(t, netx.compare_network4(net_a, net_b), -1)
+	testing.expect_value(t, netx.compare_network4(net_a, net_c), -1)
+}
+
+@(test)
 test_compare_network6 :: proc(t: ^testing.T) {
 	net_a := netx.IP6_Network{netx.ipv6_unspecified(), 64}
 	net_b := netx.IP6_Network{netx.ipv6_loopback(), 128}
 
 	cmp := netx.compare_network6(net_a, net_b)
 	testing.expect(t, cmp != 0, "Different networks should compare differently")
+}
+
+@(test)
+test_less_addr4 :: proc(t: ^testing.T) {
+	a := net.IP4_Address{10, 0, 0, 1}
+	b := net.IP4_Address{10, 0, 0, 2}
+
+	testing.expect(t, netx.less_addr4(a, b))
+	testing.expect(t, !netx.less_addr4(b, a))
+	testing.expect(t, !netx.less_addr4(a, a))
 }
 
 @(test)
@@ -1030,6 +1232,18 @@ test_less_addr6 :: proc(t: ^testing.T) {
 	testing.expect(t, netx.less_addr6(a, b))
 	testing.expect(t, !netx.less_addr6(b, a))
 	testing.expect(t, !netx.less_addr6(a, a))
+}
+
+@(test)
+test_less_network4 :: proc(t: ^testing.T) {
+	net_a := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 8}
+	net_b := netx.IP4_Network{net.IP4_Address{192, 168, 0, 0}, 16}
+	net_c := netx.IP4_Network{net.IP4_Address{10, 0, 0, 0}, 16}
+
+	testing.expect(t, netx.less_network4(net_a, net_b), "10.0.0.0/8 < 192.168.0.0/16")
+	testing.expect(t, netx.less_network4(net_a, net_c), "10.0.0.0/8 < 10.0.0.0/16")
+	testing.expect(t, !netx.less_network4(net_b, net_a), "192.168.0.0/16 not < 10.0.0.0/8")
+	testing.expect(t, !netx.less_network4(net_a, net_a), "Network not < itself")
 }
 
 @(test)
@@ -1058,71 +1272,6 @@ test_ip4_and :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_ip4_or :: proc(t: ^testing.T) {
-	network := net.IP4_Address{192, 168, 1, 0}
-	host_mask := net.IP4_Address{0, 0, 0, 255}
-	result := netx.ip4_or(network, host_mask)
-	expected := net.IP4_Address{192, 168, 1, 255}
-	testing.expect(t, result == expected, "ip4_or failed")
-}
-
-@(test)
-test_ip4_xor :: proc(t: ^testing.T) {
-	a := net.IP4_Address{192, 168, 1, 1}
-	b := net.IP4_Address{0, 0, 0, 255}
-	result := netx.ip4_xor(a, b)
-	expected := net.IP4_Address{192, 168, 1, 254}
-	testing.expect(t, result == expected, "ip4_xor failed")
-}
-
-@(test)
-test_ip4_xor_reversible :: proc(t: ^testing.T) {
-	original := net.IP4_Address{10, 20, 30, 40}
-	key := net.IP4_Address{0xDE, 0xAD, 0xBE, 0xEF}
-
-	encrypted := netx.ip4_xor(original, key)
-	decrypted := netx.ip4_xor(encrypted, key)
-
-	testing.expect(t, decrypted == original, "ip4_xor not reversible")
-}
-
-@(test)
-test_ip4_not :: proc(t: ^testing.T) {
-	mask := net.IP4_Address{255, 255, 255, 0}
-	result := netx.ip4_not(mask)
-	expected := net.IP4_Address{0, 0, 0, 255}
-	testing.expect(t, result == expected, "ip4_not failed")
-}
-
-@(test)
-test_ip4_not_double :: proc(t: ^testing.T) {
-	original := net.IP4_Address{192, 168, 1, 1}
-	result := netx.ip4_not(netx.ip4_not(original))
-	testing.expect(t, result == original, "double ip4_not should return original")
-}
-
-@(test)
-test_ip4_apply_mask :: proc(t: ^testing.T) {
-	addr := net.IP4_Address{192, 168, 1, 100}
-	mask := net.IP4_Address{255, 255, 255, 0}
-	result := netx.ip4_apply_mask(addr, mask)
-	expected := net.IP4_Address{192, 168, 1, 0}
-	testing.expect(t, result == expected, "ip4_apply_mask failed")
-}
-
-@(test)
-test_ip4_broadcast_calculation :: proc(t: ^testing.T) {
-	network := net.IP4_Address{192, 168, 1, 0}
-	mask := net.IP4_Address{255, 255, 255, 0}
-
-	host_mask := netx.ip4_not(mask)
-	broadcast := netx.ip4_or(network, host_mask)
-
-	expected := net.IP4_Address{192, 168, 1, 255}
-	testing.expect(t, broadcast == expected, "broadcast calculation failed")
-}
-
-@(test)
 test_ip6_and :: proc(t: ^testing.T) {
 	a: net.IP6_Address
 	a_seg := cast([8]u16be)a
@@ -1140,6 +1289,15 @@ test_ip6_and :: proc(t: ^testing.T) {
 	result_seg := cast([8]u16be)result
 	testing.expect(t, u16(result_seg[0]) == 0x2001, "ip6_and failed on segment 0")
 	testing.expect(t, u16(result_seg[7]) == 0, "ip6_and failed on segment 7")
+}
+
+@(test)
+test_ip4_or :: proc(t: ^testing.T) {
+	network := net.IP4_Address{192, 168, 1, 0}
+	host_mask := net.IP4_Address{0, 0, 0, 255}
+	result := netx.ip4_or(network, host_mask)
+	expected := net.IP4_Address{192, 168, 1, 255}
+	testing.expect(t, result == expected, "ip4_or failed")
 }
 
 @(test)
@@ -1162,6 +1320,15 @@ test_ip6_or :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_ip4_xor :: proc(t: ^testing.T) {
+	a := net.IP4_Address{192, 168, 1, 1}
+	b := net.IP4_Address{0, 0, 0, 255}
+	result := netx.ip4_xor(a, b)
+	expected := net.IP4_Address{192, 168, 1, 254}
+	testing.expect(t, result == expected, "ip4_xor failed")
+}
+
+@(test)
 test_ip6_xor :: proc(t: ^testing.T) {
 	a: net.IP6_Address
 	a_seg := cast([8]u16be)a
@@ -1177,6 +1344,17 @@ test_ip6_xor :: proc(t: ^testing.T) {
 
 	result_seg := cast([8]u16be)result
 	testing.expect(t, u16(result_seg[0]) == 0xFF00, "ip6_xor failed")
+}
+
+@(test)
+test_ip4_xor_reversible :: proc(t: ^testing.T) {
+	original := net.IP4_Address{10, 20, 30, 40}
+	key := net.IP4_Address{0xDE, 0xAD, 0xBE, 0xEF}
+
+	encrypted := netx.ip4_xor(original, key)
+	decrypted := netx.ip4_xor(encrypted, key)
+
+	testing.expect(t, decrypted == original, "ip4_xor not reversible")
 }
 
 @(test)
@@ -1199,6 +1377,14 @@ test_ip6_xor_reversible :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_ip4_not :: proc(t: ^testing.T) {
+	mask := net.IP4_Address{255, 255, 255, 0}
+	result := netx.ip4_not(mask)
+	expected := net.IP4_Address{0, 0, 0, 255}
+	testing.expect(t, result == expected, "ip4_not failed")
+}
+
+@(test)
 test_ip6_not :: proc(t: ^testing.T) {
 	addr: net.IP6_Address
 	addr_seg := cast([8]u16be)addr
@@ -1213,6 +1399,13 @@ test_ip6_not :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_ip4_not_double :: proc(t: ^testing.T) {
+	original := net.IP4_Address{192, 168, 1, 1}
+	result := netx.ip4_not(netx.ip4_not(original))
+	testing.expect(t, result == original, "double ip4_not should return original")
+}
+
+@(test)
 test_ip6_not_double :: proc(t: ^testing.T) {
 	original: net.IP6_Address
 	orig_seg := cast([8]u16be)original
@@ -1222,6 +1415,15 @@ test_ip6_not_double :: proc(t: ^testing.T) {
 
 	result := netx.ip6_not(netx.ip6_not(original))
 	testing.expect(t, result == original, "double ip6_not should return original")
+}
+
+@(test)
+test_ip4_apply_mask :: proc(t: ^testing.T) {
+	addr := net.IP4_Address{192, 168, 1, 100}
+	mask := net.IP4_Address{255, 255, 255, 0}
+	result := netx.ip4_apply_mask(addr, mask)
+	expected := net.IP4_Address{192, 168, 1, 0}
+	testing.expect(t, result == expected, "ip4_apply_mask failed")
 }
 
 @(test)
@@ -1277,6 +1479,21 @@ test_next_network4 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_next_network6 :: proc(t: ^testing.T) {
+	// /64 network
+	net1 := netx.must_parse_cidr6("2001:db8::/64")
+	next1, ok1 := netx.next_network6(net1)
+	testing.expect(t, ok1, "Should get next network")
+	testing.expect_value(t, next1.prefix_len, u8(64))
+
+	// /48 network
+	net2 := netx.must_parse_cidr6("2001:db8::/48")
+	next2, ok2 := netx.next_network6(net2)
+	testing.expect(t, ok2, "Should get next network")
+	testing.expect_value(t, next2.prefix_len, u8(48))
+}
+
+@(test)
 test_next_network4_overflow :: proc(t: ^testing.T) {
 	// Last /24 network
 	net := netx.must_parse_cidr4("255.255.255.0/24")
@@ -1286,6 +1503,23 @@ test_next_network4_overflow :: proc(t: ^testing.T) {
 	// /0 network
 	net0 := netx.must_parse_cidr4("0.0.0.0/0")
 	_, ok0 := netx.next_network4(net0)
+	testing.expect(t, !ok0, "Should fail for /0")
+}
+
+@(test)
+test_next_network6_overflow :: proc(t: ^testing.T) {
+	// Last /64 network (all bits set)
+	segments_max: [8]u16be
+	for i in 0..<8 {
+		segments_max[i] = 0xFFFF
+	}
+	net := netx.IP6_Network{cast(net.IP6_Address)segments_max, 64}
+	_, ok := netx.next_network6(net)
+	testing.expect(t, !ok, "Should fail at overflow")
+
+	// /0 network
+	net0 := netx.must_parse_cidr6("::/0")
+	_, ok0 := netx.next_network6(net0)
 	testing.expect(t, !ok0, "Should fail for /0")
 }
 
@@ -1314,6 +1548,15 @@ test_prev_network4 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_prev_network6 :: proc(t: ^testing.T) {
+	// /64 network
+	net1 := netx.must_parse_cidr6("2001:db8:0:1::/64")
+	prev1, ok1 := netx.prev_network6(net1)
+	testing.expect(t, ok1, "Should get previous network")
+	testing.expect_value(t, prev1.prefix_len, u8(64))
+}
+
+@(test)
 test_prev_network4_underflow :: proc(t: ^testing.T) {
 	// First /24 network
 	net := netx.must_parse_cidr4("0.0.0.0/24")
@@ -1323,6 +1566,19 @@ test_prev_network4_underflow :: proc(t: ^testing.T) {
 	// /0 network
 	net0 := netx.must_parse_cidr4("0.0.0.0/0")
 	_, ok0 := netx.prev_network4(net0)
+	testing.expect(t, !ok0, "Should fail for /0")
+}
+
+@(test)
+test_prev_network6_underflow :: proc(t: ^testing.T) {
+	// First /64 network
+	net := netx.must_parse_cidr6("::/64")
+	_, ok := netx.prev_network6(net)
+	testing.expect(t, !ok, "Should fail at underflow")
+
+	// /0 network
+	net0 := netx.must_parse_cidr6("::/0")
+	_, ok0 := netx.prev_network6(net0)
 	testing.expect(t, !ok0, "Should fail for /0")
 }
 
@@ -1351,11 +1607,34 @@ test_parent_network4 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parent_network6 :: proc(t: ^testing.T) {
+	// /64 -> /63
+	net1 := netx.must_parse_cidr6("2001:db8::/64")
+	parent1, ok1 := netx.parent_network6(net1)
+	testing.expect(t, ok1, "Should get parent network")
+	testing.expect_value(t, parent1.prefix_len, u8(63))
+
+	// /32 -> /31
+	net2 := netx.must_parse_cidr6("2001:db8::/32")
+	parent2, ok2 := netx.parent_network6(net2)
+	testing.expect(t, ok2, "Should get parent network")
+	testing.expect_value(t, parent2.prefix_len, u8(31))
+}
+
+@(test)
 test_parent_network4_no_parent :: proc(t: ^testing.T) {
 	// /0 has no parent
 	net := netx.must_parse_cidr4("0.0.0.0/0")
 	_, ok := netx.parent_network4(net)
 	testing.expect(t, !ok, "Should fail for /0")
+}
+
+@(test)
+test_parent_network6_no_parent :: proc(t: ^testing.T) {
+	// ::/0 has no parent
+	net := netx.must_parse_cidr6("::/0")
+	_, ok := netx.parent_network6(net)
+	testing.expect(t, !ok, "Should fail for ::/0")
 }
 
 @(test)
@@ -1385,53 +1664,6 @@ test_is_subnet_of4 :: proc(t: ^testing.T) {
 	// Not a subnet - outside range
 	not_subnet3 := netx.must_parse_cidr4("10.0.0.0/24")
 	testing.expect(t, !netx.is_subnet_of4(not_subnet3, parent), "Should not be a subnet")
-}
-
-@(test)
-test_next_network6 :: proc(t: ^testing.T) {
-	// /64 network
-	net1 := netx.must_parse_cidr6("2001:db8::/64")
-	next1, ok1 := netx.next_network6(net1)
-	testing.expect(t, ok1, "Should get next network")
-	testing.expect_value(t, next1.prefix_len, u8(64))
-
-	// /48 network
-	net2 := netx.must_parse_cidr6("2001:db8::/48")
-	next2, ok2 := netx.next_network6(net2)
-	testing.expect(t, ok2, "Should get next network")
-	testing.expect_value(t, next2.prefix_len, u8(48))
-}
-
-@(test)
-test_prev_network6 :: proc(t: ^testing.T) {
-	// /64 network
-	net1 := netx.must_parse_cidr6("2001:db8:0:1::/64")
-	prev1, ok1 := netx.prev_network6(net1)
-	testing.expect(t, ok1, "Should get previous network")
-	testing.expect_value(t, prev1.prefix_len, u8(64))
-}
-
-@(test)
-test_parent_network6 :: proc(t: ^testing.T) {
-	// /64 -> /63
-	net1 := netx.must_parse_cidr6("2001:db8::/64")
-	parent1, ok1 := netx.parent_network6(net1)
-	testing.expect(t, ok1, "Should get parent network")
-	testing.expect_value(t, parent1.prefix_len, u8(63))
-
-	// /32 -> /31
-	net2 := netx.must_parse_cidr6("2001:db8::/32")
-	parent2, ok2 := netx.parent_network6(net2)
-	testing.expect(t, ok2, "Should get parent network")
-	testing.expect_value(t, parent2.prefix_len, u8(31))
-}
-
-@(test)
-test_parent_network6_no_parent :: proc(t: ^testing.T) {
-	// ::/0 has no parent
-	net := netx.must_parse_cidr6("::/0")
-	_, ok := netx.parent_network6(net)
-	testing.expect(t, !ok, "Should fail for ::/0")
 }
 
 @(test)
@@ -1516,11 +1748,25 @@ test_is_valid4 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_is_valid6 :: proc(t: ^testing.T) {
+	testing.expect(t, netx.is_valid6(netx.ipv6_loopback()))
+	testing.expect(t, netx.is_valid6(netx.ipv6_unspecified()))
+}
+
+@(test)
 test_is_valid_network4 :: proc(t: ^testing.T) {
 	testing.expect(t, netx.is_valid_network4(netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}))
 	testing.expect(t, netx.is_valid_network4(netx.IP4_Network{net.IP4_Address{0, 0, 0, 0}, 0}))
 	testing.expect(t, netx.is_valid_network4(netx.IP4_Network{net.IP4_Address{8, 8, 8, 8}, 32}))
 	testing.expect(t, !netx.is_valid_network4(netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 33}))
+}
+
+@(test)
+test_is_valid_network6 :: proc(t: ^testing.T) {
+	testing.expect(t, netx.is_valid_network6(netx.IP6_Network{netx.ipv6_unspecified(), 64}))
+	testing.expect(t, netx.is_valid_network6(netx.IP6_Network{netx.ipv6_unspecified(), 0}))
+	testing.expect(t, netx.is_valid_network6(netx.IP6_Network{netx.ipv6_loopback(), 128}))
+	testing.expect(t, !netx.is_valid_network6(netx.IP6_Network{netx.ipv6_unspecified(), 129}))
 }
 
 @(test)
@@ -1532,20 +1778,6 @@ test_bitlen4 :: proc(t: ^testing.T) {
 	testing.expect_value(t, netx.bitlen4(netx.ipv4_unspecified()), 32)
 	testing.expect_value(t, netx.bitlen4(netx.ipv4_loopback()), 32)
 	testing.expect_value(t, netx.bitlen4(netx.ipv4_broadcast()), 32)
-}
-
-@(test)
-test_is_valid6 :: proc(t: ^testing.T) {
-	testing.expect(t, netx.is_valid6(netx.ipv6_loopback()))
-	testing.expect(t, netx.is_valid6(netx.ipv6_unspecified()))
-}
-
-@(test)
-test_is_valid_network6 :: proc(t: ^testing.T) {
-	testing.expect(t, netx.is_valid_network6(netx.IP6_Network{netx.ipv6_unspecified(), 64}))
-	testing.expect(t, netx.is_valid_network6(netx.IP6_Network{netx.ipv6_unspecified(), 0}))
-	testing.expect(t, netx.is_valid_network6(netx.IP6_Network{netx.ipv6_loopback(), 128}))
-	testing.expect(t, !netx.is_valid_network6(netx.IP6_Network{netx.ipv6_unspecified(), 129}))
 }
 
 @(test)
@@ -1571,6 +1803,16 @@ test_ipv4_unspecified :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_ipv6_unspecified :: proc(t: ^testing.T) {
+	addr := netx.ipv6_unspecified()
+	testing.expect(t, netx.is_unspecified6(addr), ":: is unspecified")
+	segments := cast([8]u16be)addr
+	for segment in segments {
+		testing.expect_value(t, u16(segment), u16(0))
+	}
+}
+
+@(test)
 test_ipv4_broadcast :: proc(t: ^testing.T) {
 	addr := netx.ipv4_broadcast()
 	testing.expect_value(t, addr, net.IP4_Address{255, 255, 255, 255})
@@ -1582,16 +1824,6 @@ test_ipv4_loopback :: proc(t: ^testing.T) {
 	addr := netx.ipv4_loopback()
 	testing.expect_value(t, addr, net.IP4_Address{127, 0, 0, 1})
 	testing.expect(t, netx.is_loopback4(addr), "127.0.0.1 is loopback")
-}
-
-@(test)
-test_ipv6_unspecified :: proc(t: ^testing.T) {
-	addr := netx.ipv6_unspecified()
-	testing.expect(t, netx.is_unspecified6(addr), ":: is unspecified")
-	segments := cast([8]u16be)addr
-	for segment in segments {
-		testing.expect_value(t, u16(segment), u16(0))
-	}
 }
 
 @(test)
@@ -1635,17 +1867,17 @@ test_network_addr4 :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_network_bits4 :: proc(t: ^testing.T) {
-	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
-	bits := netx.network_bits4(network)
-	testing.expect_value(t, bits, 24)
-}
-
-@(test)
 test_network_addr6 :: proc(t: ^testing.T) {
 	network := netx.IP6_Network{netx.ipv6_loopback(), 128}
 	addr := netx.network_addr6(network)
 	testing.expect_value(t, addr, netx.ipv6_loopback())
+}
+
+@(test)
+test_network_bits4 :: proc(t: ^testing.T) {
+	network := netx.IP4_Network{net.IP4_Address{192, 168, 1, 0}, 24}
+	bits := netx.network_bits4(network)
+	testing.expect_value(t, bits, 24)
 }
 
 @(test)
@@ -1720,6 +1952,17 @@ test_addr4_to_u32 :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_addr6_to_u128 :: proc(t: ^testing.T) {
+	addr := netx.ipv6_loopback()
+	addr_u128 := netx.addr6_to_u128(addr)
+	testing.expect_value(t, addr_u128, u128(1))
+
+	// Test zero
+	zero := netx.ipv6_unspecified()
+	testing.expect_value(t, netx.addr6_to_u128(zero), u128(0))
+}
+
+@(test)
 test_u32_to_addr4 :: proc(t: ^testing.T) {
 	addr := netx.u32_to_addr4(3232235876)
 	testing.expect_value(t, addr, net.IP4_Address{192, 168, 1, 100})
@@ -1731,17 +1974,6 @@ test_u32_to_addr4 :: proc(t: ^testing.T) {
 	// Test max
 	max := netx.u32_to_addr4(4294967295)
 	testing.expect_value(t, max, net.IP4_Address{255, 255, 255, 255})
-}
-
-@(test)
-test_addr6_to_u128 :: proc(t: ^testing.T) {
-	addr := netx.ipv6_loopback()
-	addr_u128 := netx.addr6_to_u128(addr)
-	testing.expect_value(t, addr_u128, u128(1))
-
-	// Test zero
-	zero := netx.ipv6_unspecified()
-	testing.expect_value(t, netx.addr6_to_u128(zero), u128(0))
 }
 
 @(test)

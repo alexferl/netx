@@ -20,10 +20,29 @@ can_merge4 :: proc(a, b: IP4_Network) -> bool {
 		return false
 	}
 
-	_, a_last := network_range4(a)
+	a_range := network_range4(a)
 	b_first := b.address
 
-	next_addr, ok := next_ip4(a_last)
+	next_addr, ok := next_ip4(a_range.end)
+	if !ok {
+		return false
+	}
+
+	return next_addr == b_first
+}
+
+can_merge6 :: proc(a, b: IP6_Network) -> bool {
+	if a.prefix_len != b.prefix_len {
+		return false
+	}
+	if a.prefix_len == 0 {
+		return false
+	}
+
+	a_range := network_range6(a)
+	b_first := b.address
+
+	next_addr, ok := next_ip6(a_range.end)
 	if !ok {
 		return false
 	}
@@ -33,6 +52,13 @@ can_merge4 :: proc(a, b: IP4_Network) -> bool {
 
 merge4 :: proc(a, b: IP4_Network) -> IP4_Network {
 	return IP4_Network{
+		address = a.address,
+		prefix_len = a.prefix_len - 1,
+	}
+}
+
+merge6 :: proc(a, b: IP6_Network) -> IP6_Network {
+	return IP6_Network{
 		address = a.address,
 		prefix_len = a.prefix_len - 1,
 	}
@@ -86,32 +112,6 @@ aggregate_networks4 :: proc(networks: []IP4_Network, allocator := context.alloca
 	final := make([]IP4_Network, len(result), allocator)
 	copy(final, result[:])
 	return final
-}
-
-can_merge6 :: proc(a, b: IP6_Network) -> bool {
-	if a.prefix_len != b.prefix_len {
-		return false
-	}
-	if a.prefix_len == 0 {
-		return false
-	}
-
-	_, a_last := network_range6(a)
-	b_first := b.address
-
-	next_addr, ok := next_ip6(a_last)
-	if !ok {
-		return false
-	}
-
-	return next_addr == b_first
-}
-
-merge6 :: proc(a, b: IP6_Network) -> IP6_Network {
-	return IP6_Network{
-		address = a.address,
-		prefix_len = a.prefix_len - 1,
-	}
 }
 
 aggregate_networks6 :: proc(networks: []IP6_Network, allocator := context.allocator) -> []IP6_Network {
@@ -191,9 +191,9 @@ range_to_cidrs4 :: proc(start, end: net.IP4_Address, allocator := context.alloca
 		best_prefix := u8(32)
 		for prefix := max_prefix; prefix <= 32; prefix += 1 {
 			network := network_from4(current, prefix)
-			_, last := network_range4(network)
+			net_range := network_range4(network)
 
-			if compare_addr4(last, end) <= 0 {
+			if compare_addr4(net_range.end, end) <= 0 {
 				best_prefix = prefix
 				break
 			}
@@ -202,8 +202,8 @@ range_to_cidrs4 :: proc(start, end: net.IP4_Address, allocator := context.alloca
 		network := network_from4(current, best_prefix)
 		append(&result, network)
 
-		_, last := network_range4(network)
-		next, ok := next_ip4(last)
+		net_range := network_range4(network)
+		next, ok := next_ip4(net_range.end)
 		if !ok || compare_addr4(next, end) > 0 {
 			break
 		}
@@ -236,9 +236,9 @@ range_to_cidrs6 :: proc(start, end: net.IP6_Address, allocator := context.alloca
 		best_prefix := u8(128)
 		for prefix := max_prefix; prefix <= 128; prefix += 1 {
 			network := network_from6(current, prefix)
-			_, last := network_range6(network)
+			net_range := network_range6(network)
 
-			if compare_addr6(last, end) <= 0 {
+			if compare_addr6(net_range.end, end) <= 0 {
 				best_prefix = prefix
 				break
 			}
@@ -247,8 +247,8 @@ range_to_cidrs6 :: proc(start, end: net.IP6_Address, allocator := context.alloca
 		network := network_from6(current, best_prefix)
 		append(&result, network)
 
-		_, last := network_range6(network)
-		next, ok := next_ip6(last)
+		net_range := network_range6(network)
+		next, ok := next_ip6(net_range.end)
 		if !ok || compare_addr6(next, end) > 0 {
 			break
 		}
@@ -274,9 +274,9 @@ pool4_init :: proc(network: IP4_Network, allocator := context.allocator) -> IP4_
 		allocated = make(map[net.IP4_Address]bool, allocator),
 	}
 
-	first, _, ok := usable_host_range4(network)
+	range, ok := usable_host_range4(network)
 	if ok {
-		pool.next_candidate = first
+		pool.next_candidate = range.start
 	} else {
 		pool.next_candidate = network.address
 	}
@@ -289,7 +289,7 @@ pool4_destroy :: proc(pool: ^IP4_Pool) {
 }
 
 pool4_allocate :: proc(pool: ^IP4_Pool) -> (addr: net.IP4_Address, ok: bool) {
-	first, last, range_ok := usable_host_range4(pool.network)
+	range, range_ok := usable_host_range4(pool.network)
 	if !range_ok {
 		return {}, false
 	}
@@ -299,21 +299,21 @@ pool4_allocate :: proc(pool: ^IP4_Pool) -> (addr: net.IP4_Address, ok: bool) {
 
 	for {
 		if current not_in pool.allocated && contains4(pool.network, current) {
-			if compare_addr4(current, first) >= 0 && compare_addr4(current, last) <= 0 {
+			if compare_addr4(current, range.start) >= 0 && compare_addr4(current, range.end) <= 0 {
 				pool.allocated[current] = true
 				next, next_ok := next_ip4(current)
-				if next_ok && compare_addr4(next, last) <= 0 {
+				if next_ok && compare_addr4(next, range.end) <= 0 {
 					pool.next_candidate = next
 				} else {
-					pool.next_candidate = first
+					pool.next_candidate = range.start
 				}
 				return current, true
 			}
 		}
 
 		next, next_ok := next_ip4(current)
-		if !next_ok || compare_addr4(next, last) > 0 {
-			current = first
+		if !next_ok || compare_addr4(next, range.end) > 0 {
+			current = range.start
 		} else {
 			current = next
 		}
@@ -367,7 +367,7 @@ pool6_destroy :: proc(pool: ^IP6_Pool) {
 }
 
 pool6_allocate :: proc(pool: ^IP6_Pool) -> (addr: net.IP6_Address, ok: bool) {
-	first, last := network_range6(pool.network)
+	range := network_range6(pool.network)
 
 	start := pool.next_candidate
 	current := start
@@ -377,18 +377,18 @@ pool6_allocate :: proc(pool: ^IP6_Pool) -> (addr: net.IP6_Address, ok: bool) {
 			if !is_unspecified6(current) {
 				pool.allocated[current] = true
 				next, next_ok := next_ip6(current)
-				if next_ok && compare_addr6(next, last) <= 0 {
+				if next_ok && compare_addr6(next, range.end) <= 0 {
 					pool.next_candidate = next
 				} else {
-					pool.next_candidate = first
+					pool.next_candidate = range.start
 				}
 				return current, true
 			}
 		}
 
 		next, next_ok := next_ip6(current)
-		if !next_ok || compare_addr6(next, last) > 0 {
-			next, _ = next_ip6(first)
+		if !next_ok || compare_addr6(next, range.end) > 0 {
+			next, _ = next_ip6(range.start)
 			current = next
 		} else {
 			current = next
@@ -583,11 +583,15 @@ find_free_subnets4 :: proc(parent: IP4_Network, used: []IP4_Network, prefix: u8,
 
 	// Generate all possible subnets of the desired prefix length
 	current := masked4(IP4_Network{parent.address, prefix})
-	parent_first, parent_last := network_range4(parent)
+	parent_range := network_range4(parent)
+	parent_first := parent_range.start
+	parent_last := parent_range.end
 
 	for {
 		// Check if current subnet is within parent
-		current_first, current_last := network_range4(current)
+		current_range := network_range4(current)
+		current_first := current_range.start
+		current_last := current_range.end
 
 		// Subnet must be fully contained in parent
 		if compare_addr4(current_first, parent_first) < 0 || compare_addr4(current_last, parent_last) > 0 {
@@ -618,161 +622,6 @@ find_free_subnets4 :: proc(parent: IP4_Network, used: []IP4_Network, prefix: u8,
 	return free[:]
 }
 
-// largest_free_block4 finds the largest contiguous free block within the parent
-// network that doesn't overlap with any used networks.
-// Returns the largest free network and true, or an empty network and false if
-// no free space exists.
-largest_free_block4 :: proc(parent: IP4_Network, used: []IP4_Network, allocator := context.allocator) -> (largest: IP4_Network, ok: bool) {
-	if len(used) == 0 {
-		return parent, true
-	}
-
-	// Sort used networks by address
-	sorted_used := make([]IP4_Network, len(used), allocator)
-	defer delete(sorted_used, allocator)
-	copy(sorted_used, used)
-
-	// Bubble sort (simple for small lists)
-	for i := 0; i < len(sorted_used); i += 1 {
-		for j := i + 1; j < len(sorted_used); j += 1 {
-			if compare_network4(sorted_used[i], sorted_used[j]) > 0 {
-				sorted_used[i], sorted_used[j] = sorted_used[j], sorted_used[i]
-			}
-		}
-	}
-
-	parent_first, parent_last := network_range4(parent)
-	largest_size := u32(0)
-	found := false
-
-	// Check gap before first used network
-	if len(sorted_used) > 0 {
-		first_used_start, _ := network_range4(sorted_used[0])
-		if compare_addr4(parent_first, first_used_start) < 0 {
-			gap_size := addr4_to_u32(first_used_start) - addr4_to_u32(parent_first)
-			if gap_size > largest_size {
-				largest_size = gap_size
-				// Find the largest prefix that fits
-				prefix := _calculate_prefix_for_size4(gap_size)
-				largest = IP4_Network{parent_first, prefix}
-				found = true
-			}
-		}
-	}
-
-	// Check gaps between used networks
-	for i := 0; i < len(sorted_used) - 1; i += 1 {
-		_, current_end := network_range4(sorted_used[i])
-		next_start, _ := network_range4(sorted_used[i + 1])
-
-		// Check if there's a gap
-		current_end_u32 := addr4_to_u32(current_end)
-		next_start_u32 := addr4_to_u32(next_start)
-
-		if next_start_u32 > current_end_u32 + 1 {
-			gap_start := u32_to_addr4(current_end_u32 + 1)
-			gap_size := next_start_u32 - current_end_u32 - 1
-
-			if gap_size > largest_size {
-				largest_size = gap_size
-				prefix := _calculate_prefix_for_size4(gap_size)
-				largest = IP4_Network{gap_start, prefix}
-				found = true
-			}
-		}
-	}
-
-	// Check gap after last used network
-	if len(sorted_used) > 0 {
-		_, last_used_end := network_range4(sorted_used[len(sorted_used) - 1])
-		last_used_end_u32 := addr4_to_u32(last_used_end)
-		parent_last_u32 := addr4_to_u32(parent_last)
-
-		if parent_last_u32 > last_used_end_u32 {
-			gap_start := u32_to_addr4(last_used_end_u32 + 1)
-			gap_size := parent_last_u32 - last_used_end_u32
-
-			if gap_size > largest_size {
-				largest_size = gap_size
-				prefix := _calculate_prefix_for_size4(gap_size)
-				largest = IP4_Network{gap_start, prefix}
-				found = true
-			}
-		}
-	}
-
-	return largest, found
-}
-
-// Helper function to calculate the largest prefix that fits in a given size
-@(private)
-_calculate_prefix_for_size4 :: proc(size: u32) -> u8 {
-	if size == 0 {
-		return 32
-	}
-
-	// Find the highest bit set
-	bits := 32 - intrinsics.count_leading_zeros(size)
-
-	// The prefix length is 32 - bits
-	prefix := u8(32 - bits)
-
-	// But we need to ensure the size is a power of 2
-	// If not, use one bit more specific
-	if size & (size - 1) != 0 {
-		prefix += 1
-	}
-
-	return max(prefix, 0)
-}
-
-// subnet_utilization4 calculates the percentage of the parent network that is
-// used by the given networks. Returns a value between 0.0 (empty) and 1.0 (full).
-subnet_utilization4 :: proc(parent: IP4_Network, used: []IP4_Network) -> f64 {
-	if len(used) == 0 {
-		return 0.0
-	}
-
-	// Calculate total parent size
-	parent_size := u64(1) << (32 - parent.prefix_len)
-
-	// Calculate total used size (accounting for overlaps)
-	used_addresses := make(map[u32]bool, allocator = context.temp_allocator)
-	defer delete(used_addresses)
-
-	for network in used {
-		// Only count addresses within the parent
-		if !overlaps4(parent, network) {
-			continue
-		}
-
-		first, last := network_range4(network)
-		current := addr4_to_u32(first)
-		end := addr4_to_u32(last)
-
-		parent_first_u32 := addr4_to_u32(parent.address)
-		parent_last_u32 := parent_first_u32 + u32(parent_size) - 1
-
-		// Clamp to parent range
-		if current < parent_first_u32 {
-			current = parent_first_u32
-		}
-		if end > parent_last_u32 {
-			end = parent_last_u32
-		}
-
-		// Mark all addresses as used
-		for addr := current; addr <= end; addr += 1 {
-			used_addresses[addr] = true
-		}
-	}
-
-	used_count := f64(len(used_addresses))
-	total_count := f64(parent_size)
-
-	return used_count / total_count
-}
-
 find_free_subnets6 :: proc(parent: IP6_Network, used: []IP6_Network, prefix: u8, allocator := context.allocator) -> []IP6_Network {
 	if prefix < parent.prefix_len {
 		return nil
@@ -781,7 +630,8 @@ find_free_subnets6 :: proc(parent: IP6_Network, used: []IP6_Network, prefix: u8,
 	free := make([dynamic]IP6_Network, allocator)
 
 	current := masked6(IP6_Network{parent.address, prefix})
-	parent_last, _ := network_range6(parent)
+	parent_range := network_range6(parent)
+	parent_last := parent_range.end
 
 	for {
 		if !contains6(parent, current.address) {
@@ -814,6 +664,100 @@ find_free_subnets6 :: proc(parent: IP6_Network, used: []IP6_Network, prefix: u8,
 	return free[:]
 }
 
+
+
+// largest_free_block4 finds the largest contiguous free block within the parent
+// network that doesn't overlap with any used networks.
+// Returns the largest free network and true, or an empty network and false if
+// no free space exists.
+largest_free_block4 :: proc(parent: IP4_Network, used: []IP4_Network, allocator := context.allocator) -> (largest: IP4_Network, ok: bool) {
+	if len(used) == 0 {
+		return parent, true
+	}
+
+	// Sort used networks by address
+	sorted_used := make([]IP4_Network, len(used), allocator)
+	defer delete(sorted_used, allocator)
+	copy(sorted_used, used)
+
+	// Bubble sort (simple for small lists)
+	for i := 0; i < len(sorted_used); i += 1 {
+		for j := i + 1; j < len(sorted_used); j += 1 {
+			if compare_network4(sorted_used[i], sorted_used[j]) > 0 {
+				sorted_used[i], sorted_used[j] = sorted_used[j], sorted_used[i]
+			}
+		}
+	}
+
+	parent_range := network_range4(parent)
+	parent_first := parent_range.start
+	parent_last := parent_range.end
+	largest_size := u32(0)
+	found := false
+
+	// Check gap before first used network
+	if len(sorted_used) > 0 {
+		first_used_range := network_range4(sorted_used[0])
+		first_used_start := first_used_range.start
+		if compare_addr4(parent_first, first_used_start) < 0 {
+			gap_size := addr4_to_u32(first_used_start) - addr4_to_u32(parent_first)
+			if gap_size > largest_size {
+				largest_size = gap_size
+				// Find the largest prefix that fits
+				prefix := _calculate_prefix_for_size4(gap_size)
+				largest = IP4_Network{parent_first, prefix}
+				found = true
+			}
+		}
+	}
+
+	// Check gaps between used networks
+	for i := 0; i < len(sorted_used) - 1; i += 1 {
+		current_range := network_range4(sorted_used[i])
+		current_end := current_range.end
+		next_range := network_range4(sorted_used[i + 1])
+		next_start := next_range.start
+
+		// Check if there's a gap
+		current_end_u32 := addr4_to_u32(current_end)
+		next_start_u32 := addr4_to_u32(next_start)
+
+		if next_start_u32 > current_end_u32 + 1 {
+			gap_start := u32_to_addr4(current_end_u32 + 1)
+			gap_size := next_start_u32 - current_end_u32 - 1
+
+			if gap_size > largest_size {
+				largest_size = gap_size
+				prefix := _calculate_prefix_for_size4(gap_size)
+				largest = IP4_Network{gap_start, prefix}
+				found = true
+			}
+		}
+	}
+
+	// Check gap after last used network
+	if len(sorted_used) > 0 {
+		last_used_range := network_range4(sorted_used[len(sorted_used) - 1])
+		last_used_end := last_used_range.end
+		last_used_end_u32 := addr4_to_u32(last_used_end)
+		parent_last_u32 := addr4_to_u32(parent_last)
+
+		if parent_last_u32 > last_used_end_u32 {
+			gap_start := u32_to_addr4(last_used_end_u32 + 1)
+			gap_size := parent_last_u32 - last_used_end_u32
+
+			if gap_size > largest_size {
+				largest_size = gap_size
+				prefix := _calculate_prefix_for_size4(gap_size)
+				largest = IP4_Network{gap_start, prefix}
+				found = true
+			}
+		}
+	}
+
+	return largest, found
+}
+
 largest_free_block6 :: proc(parent: IP6_Network, used: []IP6_Network, allocator := context.allocator) -> (largest: IP6_Network, ok: bool) {
 	if len(used) == 0 {
 		return parent, true
@@ -832,13 +776,16 @@ largest_free_block6 :: proc(parent: IP6_Network, used: []IP6_Network, allocator 
 		}
 	}
 
-	parent_first, parent_last := network_range6(parent)
+	parent_range := network_range6(parent)
+	parent_first := parent_range.start
+	parent_last := parent_range.end
 	largest_size := u128(0)
 	found := false
 
 	// Check gap before first used network
 	if len(sorted_used) > 0 {
-		first_used_start, _ := network_range6(sorted_used[0])
+		first_used_range := network_range6(sorted_used[0])
+		first_used_start := first_used_range.start
 		if compare_addr6(parent_first, first_used_start) < 0 {
 			gap_size := addr6_to_u128(first_used_start) - addr6_to_u128(parent_first)
 			if gap_size > largest_size {
@@ -852,8 +799,10 @@ largest_free_block6 :: proc(parent: IP6_Network, used: []IP6_Network, allocator 
 
 	// Check gaps between used networks
 	for i := 0; i < len(sorted_used) - 1; i += 1 {
-		_, current_end := network_range6(sorted_used[i])
-		next_start, _ := network_range6(sorted_used[i + 1])
+		current_range := network_range6(sorted_used[i])
+		current_end := current_range.end
+		next_range := network_range6(sorted_used[i + 1])
+		next_start := next_range.start
 
 		current_end_u128 := addr6_to_u128(current_end)
 		next_start_u128 := addr6_to_u128(next_start)
@@ -873,7 +822,8 @@ largest_free_block6 :: proc(parent: IP6_Network, used: []IP6_Network, allocator 
 
 	// Check gap after last used network
 	if len(sorted_used) > 0 {
-		_, last_used_end := network_range6(sorted_used[len(sorted_used) - 1])
+		last_used_range := network_range6(sorted_used[len(sorted_used) - 1])
+		last_used_end := last_used_range.end
 		last_used_end_u128 := addr6_to_u128(last_used_end)
 		parent_last_u128 := addr6_to_u128(parent_last)
 
@@ -893,20 +843,51 @@ largest_free_block6 :: proc(parent: IP6_Network, used: []IP6_Network, allocator 
 	return largest, found
 }
 
-@(private)
-_calculate_prefix_for_size6 :: proc(size: u128) -> u8 {
-	if size == 0 {
-		return 128
+// subnet_utilization4 calculates the percentage of the parent network that is
+// used by the given networks. Returns a value between 0.0 (empty) and 1.0 (full).
+subnet_utilization4 :: proc(parent: IP4_Network, used: []IP4_Network) -> f64 {
+	if len(used) == 0 {
+		return 0.0
 	}
 
-	bits := 128 - intrinsics.count_leading_zeros(size)
-	prefix := u8(128 - bits)
+	// Calculate total parent size
+	parent_size := u64(1) << (32 - parent.prefix_len)
 
-	if size & (size - 1) != 0 {
-		prefix += 1
+	// Calculate total used size (accounting for overlaps)
+	used_addresses := make(map[u32]bool, allocator = context.temp_allocator)
+	defer delete(used_addresses)
+
+	for network in used {
+		// Only count addresses within the parent
+		if !overlaps4(parent, network) {
+			continue
+		}
+
+		net_range := network_range4(network)
+		current := addr4_to_u32(net_range.start)
+		end := addr4_to_u32(net_range.end)
+
+		parent_first_u32 := addr4_to_u32(parent.address)
+		parent_last_u32 := parent_first_u32 + u32(parent_size) - 1
+
+		// Clamp to parent range
+		if current < parent_first_u32 {
+			current = parent_first_u32
+		}
+		if end > parent_last_u32 {
+			end = parent_last_u32
+		}
+
+		// Mark all addresses as used
+		for addr := current; addr <= end; addr += 1 {
+			used_addresses[addr] = true
+		}
 	}
 
-	return max(prefix, 0)
+	used_count := f64(len(used_addresses))
+	total_count := f64(parent_size)
+
+	return used_count / total_count
 }
 
 subnet_utilization6 :: proc(parent: IP6_Network, used: []IP6_Network) -> f64 {
@@ -933,4 +914,43 @@ subnet_utilization6 :: proc(parent: IP6_Network, used: []IP6_Network) -> f64 {
 	}
 
 	return f64(used_size) / f64(parent_size)
+}
+
+
+// Helper function to calculate the largest prefix that fits in a given size
+@(private)
+_calculate_prefix_for_size4 :: proc(size: u32) -> u8 {
+	if size == 0 {
+		return 32
+	}
+
+	// Find the highest bit set
+	bits := 32 - intrinsics.count_leading_zeros(size)
+
+	// The prefix length is 32 - bits
+	prefix := u8(32 - bits)
+
+	// But we need to ensure the size is a power of 2
+	// If not, use one bit more specific
+	if size & (size - 1) != 0 {
+		prefix += 1
+	}
+
+	return max(prefix, 0)
+}
+
+@(private)
+_calculate_prefix_for_size6 :: proc(size: u128) -> u8 {
+	if size == 0 {
+		return 128
+	}
+
+	bits := 128 - intrinsics.count_leading_zeros(size)
+	prefix := u8(128 - bits)
+
+	if size & (size - 1) != 0 {
+		prefix += 1
+	}
+
+	return max(prefix, 0)
 }

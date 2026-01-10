@@ -17,6 +17,27 @@ addr4_to_ptr :: proc(addr: net.IP4_Address, allocator := context.allocator) -> s
 	allocator = allocator)
 }
 
+// addr6_to_ptr converts an IPv6 address to a PTR record name.
+// Example: 2001:db8::1 -> "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa"
+addr6_to_ptr :: proc(addr: net.IP6_Address, allocator := context.allocator) -> string {
+	// Convert to bytes for easier nibble extraction
+	bytes := transmute([16]u8)addr
+	builder := strings.builder_make(allocator)
+
+	// Process bytes in reverse order
+	for i := 15; i >= 0; i -= 1 {
+		b := bytes[i]
+		// Low nibble first, then high nibble
+		fmt.sbprintf(&builder, "%x.", b & 0xF)
+		fmt.sbprintf(&builder, "%x.", (b >> 4) & 0xF)
+	}
+
+	// Append ip6.arpa
+	strings.write_string(&builder, "ip6.arpa")
+
+	return strings.to_string(builder)
+}
+
 // network4_to_ptr converts an IPv4 network to a PTR zone name.
 // Example: 192.168.1.0/24 -> "1.168.192.in-addr.arpa"
 //          10.0.0.0/8 -> "10.in-addr.arpa"
@@ -40,6 +61,40 @@ network4_to_ptr :: proc(network: IP4_Network, allocator := context.allocator) ->
 		masked.address[3], masked.address[2], masked.address[1], masked.address[0],
 		allocator = allocator)
 	}
+}
+
+// network6_to_ptr converts an IPv6 network to a PTR zone name.
+// Prefix length should be on a nibble boundary (multiple of 4) for standard delegation.
+// Example: 2001:db8::/32 -> "8.b.d.0.1.0.0.2.ip6.arpa"
+network6_to_ptr :: proc(network: IP6_Network, allocator := context.allocator) -> string {
+	prefix := network.prefix_len
+	nibble_count := prefix / 4
+
+	if nibble_count == 0 {
+		return "ip6.arpa"
+	}
+
+	// Convert to bytes for easier nibble extraction
+	bytes := transmute([16]u8)network.address
+	builder := strings.builder_make(allocator)
+
+	// Extract nibbles in order (high to low), then we'll reverse
+	nibbles: [32]u8
+	for i in 0..<16 {
+		b := bytes[i]
+		nibbles[i*2] = (b >> 4) & 0xF      // High nibble
+		nibbles[i*2 + 1] = b & 0xF         // Low nibble
+	}
+
+	// Output nibbles in reverse order up to nibble_count
+	for i := int(nibble_count) - 1; i >= 0; i -= 1 {
+		fmt.sbprintf(&builder, "%x.", nibbles[i])
+	}
+
+	// Append ip6.arpa
+	strings.write_string(&builder, "ip6.arpa")
+
+	return strings.to_string(builder)
 }
 
 // network4_to_classless_ptr generates a classless in-addr.arpa delegation name (RFC 2317).
@@ -92,68 +147,6 @@ ptr_to_addr4 :: proc(ptr: string) -> (addr: net.IP4_Address, ok: bool) {
 	return net.IP4_Address{octets[0], octets[1], octets[2], octets[3]}, true
 }
 
-
-// is_valid_ptr4 checks if a string is a valid IPv4 PTR record format.
-is_valid_ptr4 :: proc(ptr: string) -> bool {
-	_, ok := ptr_to_addr4(ptr)
-	return ok
-}
-
-// addr6_to_ptr converts an IPv6 address to a PTR record name.
-// Example: 2001:db8::1 -> "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa"
-addr6_to_ptr :: proc(addr: net.IP6_Address, allocator := context.allocator) -> string {
-// Convert to bytes for easier nibble extraction
-	bytes := transmute([16]u8)addr
-	builder := strings.builder_make(allocator)
-
-	// Process bytes in reverse order
-	for i := 15; i >= 0; i -= 1 {
-		b := bytes[i]
-		// Low nibble first, then high nibble
-		fmt.sbprintf(&builder, "%x.", b & 0xF)
-		fmt.sbprintf(&builder, "%x.", (b >> 4) & 0xF)
-	}
-
-	// Append ip6.arpa
-	strings.write_string(&builder, "ip6.arpa")
-
-	return strings.to_string(builder)
-}
-
-// network6_to_ptr converts an IPv6 network to a PTR zone name.
-// Prefix length should be on a nibble boundary (multiple of 4) for standard delegation.
-// Example: 2001:db8::/32 -> "8.b.d.0.1.0.0.2.ip6.arpa"
-network6_to_ptr :: proc(network: IP6_Network, allocator := context.allocator) -> string {
-	prefix := network.prefix_len
-	nibble_count := prefix / 4
-
-	if nibble_count == 0 {
-		return "ip6.arpa"
-	}
-
-	// Convert to bytes for easier nibble extraction
-	bytes := transmute([16]u8)network.address
-	builder := strings.builder_make(allocator)
-
-	// Extract nibbles in order (high to low), then we'll reverse
-	nibbles: [32]u8
-	for i in 0..<16 {
-		b := bytes[i]
-		nibbles[i*2] = (b >> 4) & 0xF      // High nibble
-		nibbles[i*2 + 1] = b & 0xF         // Low nibble
-	}
-
-	// Output nibbles in reverse order up to nibble_count
-	for i := int(nibble_count) - 1; i >= 0; i -= 1 {
-		fmt.sbprintf(&builder, "%x.", nibbles[i])
-	}
-
-	// Append ip6.arpa
-	strings.write_string(&builder, "ip6.arpa")
-
-	return strings.to_string(builder)
-}
-
 // ptr_to_addr6 parses an IPv6 PTR record name back to an address.
 // Example: "1.0.0.0...ip6.arpa" -> 2001:db8::1
 ptr_to_addr6 :: proc(ptr: string) -> (addr: net.IP6_Address, ok: bool) {
@@ -194,6 +187,12 @@ ptr_to_addr6 :: proc(ptr: string) -> (addr: net.IP6_Address, ok: bool) {
 	}
 
 	return transmute(net.IP6_Address)bytes, true
+}
+
+// is_valid_ptr4 checks if a string is a valid IPv4 PTR record format.
+is_valid_ptr4 :: proc(ptr: string) -> bool {
+	_, ok := ptr_to_addr4(ptr)
+	return ok
 }
 
 // is_valid_ptr6 checks if a string is a valid IPv6 PTR record format.
