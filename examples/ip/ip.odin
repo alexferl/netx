@@ -307,25 +307,32 @@ main :: proc() {
 
 	fmt.println("\n--- IPv6: Bitwise Operations ---")
 
-	ipv6_addr := cast(net.IP6_Address)[8]u16be{0x2001, 0x0DB8, 0, 0, 0, 0, 0, 0x1234}
-	ipv6_mask := cast(net.IP6_Address)[8]u16be{0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0, 0, 0}
+	segments_addr: [8]u16be = {0x2001, 0x0DB8, 0, 0, 0, 0, 0, 0x1234}
+	ipv6_addr := cast(net.IP6_Address)segments_addr
+	segments_mask: [8]u16be = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0, 0, 0}
+	ipv6_mask := cast(net.IP6_Address)segments_mask
 	ipv6_network := netx.ip6_and(ipv6_addr, ipv6_mask)
 	fmt.printf("AND: %s & /64 = %s\n", netx.addr_to_string6(ipv6_addr), netx.addr_to_string6(ipv6_network))
 
-	ipv6_a := cast(net.IP6_Address)[8]u16be{0x2001, 0, 0, 0, 0, 0, 0, 0}
-	ipv6_b := cast(net.IP6_Address)[8]u16be{0, 0, 0, 0, 0, 0, 0, 0x0001}
+	segments_a: [8]u16be = {0x2001, 0, 0, 0, 0, 0, 0, 0}
+	ipv6_a := cast(net.IP6_Address)segments_a
+	segments_b: [8]u16be = {0, 0, 0, 0, 0, 0, 0, 0x0001}
+	ipv6_b := cast(net.IP6_Address)segments_b
 	ipv6_combined := netx.ip6_or(ipv6_a, ipv6_b)
 	fmt.printf("OR: %s | %s = %s\n", netx.addr_to_string6(ipv6_a), netx.addr_to_string6(ipv6_b), netx.addr_to_string6(ipv6_combined))
 
-	ipv6_original := cast(net.IP6_Address)[8]u16be{0x2001, 0x0DB8, 0, 0, 0, 0, 0, 0x0001}
-	ipv6_key := cast(net.IP6_Address)[8]u16be{0, 0, 0, 0, 0, 0, 0, 0xDEAD}
+	segments_original: [8]u16be = {0x2001, 0x0DB8, 0, 0, 0, 0, 0, 0x0001}
+	ipv6_original := cast(net.IP6_Address)segments_original
+	segments_key: [8]u16be = {0, 0, 0, 0, 0, 0, 0, 0xDEAD}
+	ipv6_key := cast(net.IP6_Address)segments_key
 	ipv6_encrypted := netx.ip6_xor(ipv6_original, ipv6_key)
 	ipv6_decrypted := netx.ip6_xor(ipv6_encrypted, ipv6_key)
 	fmt.printf("XOR: %s ^ %s = %s (decrypt: %s)\n",
 	netx.addr_to_string6(ipv6_original), netx.addr_to_string6(ipv6_key),
 	netx.addr_to_string6(ipv6_encrypted), netx.addr_to_string6(ipv6_decrypted))
 
-	ipv6_test := cast(net.IP6_Address)[8]u16be{0xFFFF, 0, 0, 0, 0, 0, 0, 0}
+	segments_test: [8]u16be = {0xFFFF, 0, 0, 0, 0, 0, 0, 0}
+	ipv6_test := cast(net.IP6_Address)segments_test
 	ipv6_inverted := netx.ip6_not(ipv6_test)
 	fmt.printf("NOT: ~%s = %s\n", netx.addr_to_string6(ipv6_test), netx.addr_to_string6(ipv6_inverted))
 }
