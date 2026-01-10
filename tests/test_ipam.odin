@@ -30,8 +30,8 @@ test_can_merge4 :: proc(t: ^testing.T) {
 
 @(test)
 test_can_merge6 :: proc(t: ^testing.T) {
-// Two /65 networks: ::/65 and the next /65
-// First network: ::/65 covers 0 to 2^63-1
+	// Two /65 networks: ::/65 and the next /65
+	// First network: ::/65 covers 0 to 2^63-1
 	addr_a := netx.ipv6_unspecified()
 	net_a := netx.IP6_Network{addr_a, 65}
 
@@ -94,7 +94,7 @@ test_merge4 :: proc(t: ^testing.T) {
 
 @(test)
 test_merge6 :: proc(t: ^testing.T) {
-// Merge two /65 networks into /64
+	// Merge two /65 networks into /64
 	segments_a: [8]u16be
 	segments_a[0] = 0x2001
 	segments_a[1] = 0x0db8
@@ -288,7 +288,7 @@ test_aggregate_networks4_different_prefix_lengths :: proc(t: ^testing.T) {
 
 @(test)
 test_aggregate_networks6_different_prefix_lengths :: proc(t: ^testing.T) {
-// Networks with different prefix lengths that don't merge
+	// Networks with different prefix lengths that don't merge
 	segments1: [8]u16be
 	segments1[0] = 0x2001
 	segments1[1] = 0x0db8
@@ -736,7 +736,7 @@ test_supernet4 :: proc(t: ^testing.T) {
 
 @(test)
 test_supernet6 :: proc(t: ^testing.T) {
-// 2001:db8::/64 and 2001:db8:0:1::/64 -> 2001:db8::/63
+	// 2001:db8::/64 and 2001:db8:0:1::/64 -> 2001:db8::/63
 	segments_a: [8]u16be
 	segments_a[0] = 0x2001
 	segments_a[1] = 0x0db8

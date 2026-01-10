@@ -150,7 +150,7 @@ ptr_to_addr4 :: proc(ptr: string) -> (addr: net.IP4_Address, ok: bool) {
 // ptr_to_addr6 parses an IPv6 PTR record name back to an address.
 // Example: "1.0.0.0...ip6.arpa" -> 2001:db8::1
 ptr_to_addr6 :: proc(ptr: string) -> (addr: net.IP6_Address, ok: bool) {
-// Check suffix
+	// Check suffix
 	if !strings.has_suffix(ptr, ".ip6.arpa") {
 		return {}, false
 	}

@@ -21,6 +21,9 @@ jobs:
       - name: Run Checks
         run: odin check . -disallow-do -no-entry-point -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 
+      - name: Run Checks Examples Basic
+        run: odin check examples/basic -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
+
       - name: Run Checks Examples DNS
         run: odin check examples/dns -disallow-do -strict-style -vet -vet-style -vet-tabs -warnings-as-errors
 

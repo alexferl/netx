@@ -57,12 +57,12 @@ main :: proc() {
 	netx.network_to_string4(network), netx.addr_to_string4(outside_addr), netx.contains4(network, outside_addr))
 
 	fmt.println("\n--- IPv4: Network Ranges ---")
-	first, last := netx.network_range4(network)
-	fmt.printf("Range: %s - %s\n", netx.addr_to_string4(first), netx.addr_to_string4(last))
+	range := netx.network_range4(network)
+	fmt.printf("Range: %s - %s\n", netx.addr_to_string4(range.start), netx.addr_to_string4(range.end))
 
-	usable_first, usable_last, usable_ok := netx.usable_host_range4(network)
+	usable_range, usable_ok := netx.usable_host_range4(network)
 	if usable_ok {
-		fmt.printf("Usable hosts: %s - %s\n", netx.addr_to_string4(usable_first), netx.addr_to_string4(usable_last))
+		fmt.printf("Usable hosts: %s - %s\n", netx.addr_to_string4(usable_range.start), netx.addr_to_string4(usable_range.end))
 	}
 	fmt.printf("Host count: %d\n", netx.host_count4(network))
 
@@ -230,9 +230,9 @@ main :: proc() {
 	netx.network_to_string6(network6), netx.addr_to_string6(test_addr6), netx.contains6(network6, test_addr6))
 
 	fmt.println("\n--- IPv6: Network Ranges ---")
-	first6, last6 := netx.network_range6(network6)
-	fmt.printf("First address: %s\n", netx.addr_to_string6(first6))
-	fmt.printf("Last address: %s\n", netx.addr_to_string6(last6))
+	range6 := netx.network_range6(network6)
+	fmt.printf("First address: %s\n", netx.addr_to_string6(range6.start))
+	fmt.printf("Last address: %s\n", netx.addr_to_string6(range6.end))
 
 	fmt.println("\n--- IPv6: Accessors ---")
 	fmt.printf("Network address: %s\n", netx.addr_to_string6(netx.network_addr6(network6)))

@@ -664,8 +664,6 @@ find_free_subnets6 :: proc(parent: IP6_Network, used: []IP6_Network, prefix: u8,
 	return free[:]
 }
 
-
-
 // largest_free_block4 finds the largest contiguous free block within the parent
 // network that doesn't overlap with any used networks.
 // Returns the largest free network and true, or an empty network and false if
@@ -915,7 +913,6 @@ subnet_utilization6 :: proc(parent: IP6_Network, used: []IP6_Network) -> f64 {
 
 	return f64(used_size) / f64(parent_size)
 }
-
 
 // Helper function to calculate the largest prefix that fits in a given size
 @(private)

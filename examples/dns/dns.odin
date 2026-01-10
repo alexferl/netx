@@ -234,17 +234,17 @@ main :: proc() {
 	fmt.printf("Subnet: %s\n", netx.network_to_string4(subnet))
 	fmt.printf("Zone: %s\n\n", netx.network4_to_classless_ptr(subnet, context.temp_allocator))
 
-	first, last, ok_range := netx.usable_host_range4(subnet)
+	range, ok_range := netx.usable_host_range4(subnet)
 	if ok_range {
 		fmt.println("PTR records for usable hosts:")
-		current := first
+		current := range.start
 		for {
 			netx.addr4_to_ptr(current, context.temp_allocator)
 			fmt.printf("  %-15s  IN PTR  host-%d-%d-%d-%d.example.com.\n",
 			netx.addr_to_string4(current),
 			current[0], current[1], current[2], current[3])
 
-			if current == last {
+			if current == range.end {
 				break
 			}
 			next, ok_next := netx.next_ip4(current)

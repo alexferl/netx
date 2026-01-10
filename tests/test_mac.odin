@@ -250,7 +250,7 @@ test_ipv6_to_eui64_non_slaac :: proc(t: ^testing.T) {
 
 @(test)
 test_ipv6_to_mac :: proc(t: ^testing.T) {
-// Full roundtrip: MAC -> link-local -> MAC
+	// Full roundtrip: MAC -> link-local -> MAC
 	original := netx.MAC_Address{bytes = {0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E}}
 	addr := netx.mac_to_ipv6_link_local(original)
 	recovered, ok := netx.ipv6_to_mac(addr)

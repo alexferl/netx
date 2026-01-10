@@ -44,7 +44,7 @@ test_parse_cidr4 :: proc(t: ^testing.T) {
 
 @(test)
 test_parse_cidr6 :: proc(t: ^testing.T) {
-// Valid CIDR
+	// Valid CIDR
 	network, ok := netx.parse_cidr6("2001:db8::/32")
 	testing.expect(t, ok, "Should parse valid CIDR")
 	testing.expect_value(t, network.prefix_len, u8(32))
@@ -105,7 +105,7 @@ test_addr_to_string4 :: proc(t: ^testing.T) {
 
 @(test)
 test_addr_to_string6 :: proc(t: ^testing.T) {
-// Test loopback (::1)
+	// Test loopback (::1)
 	loopback := netx.ipv6_loopback()
 	str_loopback := netx.addr_to_string6(loopback, context.temp_allocator)
 	testing.expect_value(t, str_loopback, "::1")
@@ -237,7 +237,7 @@ test_prefix_to_mask4 :: proc(t: ^testing.T) {
 
 @(test)
 test_prefix_to_mask6 :: proc(t: ^testing.T) {
-// Test /64
+	// Test /64
 	mask64 := netx.prefix_to_mask6(64)
 	for i in 0..<4 {
 		testing.expect_value(t, u16(mask64[i]), u16(0xFFFF))

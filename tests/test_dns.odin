@@ -131,7 +131,7 @@ test_network4_to_ptr_non_standard :: proc(t: ^testing.T) {
 
 @(test)
 test_network4_to_classless_ptr :: proc(t: ^testing.T) {
-// /26 network (classless delegation)
+	// /26 network (classless delegation)
 	net26 := netx.IP4_Network{net.IP4_Address{192, 168, 1, 64}, 26}
 	ptr26 := netx.network4_to_classless_ptr(net26, context.temp_allocator)
 	testing.expect_value(t, ptr26, "64/26.1.168.192.in-addr.arpa")

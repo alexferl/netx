@@ -1,9 +1,9 @@
 package netx
 
-import "core:net"
 import "core:fmt"
-import "core:strings"
+import "core:net"
 import "core:strconv"
+import "core:strings"
 
 IP4_Network :: struct {
 	address:    net.IP4_Address,
@@ -24,7 +24,6 @@ IP6_Range :: struct {
 	start: net.IP6_Address,
 	end: net.IP6_Address,
 }
-
 
 // ============================================================================
 // PARSING AND FORMATTING

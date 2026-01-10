@@ -62,11 +62,11 @@ main :: proc() {
 
 	cidrs := netx.range_to_cidrs4(start, end, context.temp_allocator)
 	for cidr in cidrs {
-		first, last := netx.network_range4(cidr)
+		range := netx.network_range4(cidr)
 		fmt.printf("  %s (%s - %s)\n",
 		netx.network_to_string4(cidr),
-		netx.addr_to_string4(first),
-		netx.addr_to_string4(last))
+		netx.addr_to_string4(range.start),
+		netx.addr_to_string4(range.end))
 	}
 
 	// ========================================================================
@@ -199,11 +199,11 @@ main :: proc() {
 	remaining := netx.exclude4(from, exclude, context.temp_allocator)
 	fmt.println("Remaining networks:")
 	for net in remaining {
-		first, last := netx.network_range4(net)
+		range := netx.network_range4(net)
 		fmt.printf("  %s (%s - %s)\n",
 		netx.network_to_string4(net),
-		netx.addr_to_string4(first),
-		netx.addr_to_string4(last))
+		netx.addr_to_string4(range.start),
+		netx.addr_to_string4(range.end))
 	}
 
 	// Exclude a smaller subnet
@@ -333,12 +333,12 @@ main :: proc() {
 	fmt.printf("Datacenter network: %s\n", netx.network_to_string4(datacenter))
 	fmt.println("Allocated subnets:")
 	for subnet in allocated {
-		first, last := netx.network_range4(subnet)
+		range := netx.network_range4(subnet)
 		fmt.printf("  %s (%d hosts: %s - %s)\n",
 		netx.network_to_string4(subnet),
 		netx.host_count4(subnet),
-		netx.addr_to_string4(first),
-		netx.addr_to_string4(last))
+		netx.addr_to_string4(range.start),
+		netx.addr_to_string4(range.end))
 	}
 
 	largest, ok := netx.largest_free_block4(datacenter, allocated, context.temp_allocator)

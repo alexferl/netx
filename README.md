@@ -10,7 +10,10 @@ Inspired by Go's [`net/netip`](https://pkg.go.dev/net/netip) package, providing 
 - Parse and format CIDR notation (`192.168.1.0/24`, `2001:db8::/32`)
 - IP classification (private, loopback, multicast, link-local, global unicast)
 - Network operations (contains, overlaps, comparison)
-- Network ranges and host counting
+- **IP Range types** (`IP4_Range`/`IP6_Range`): Structured address ranges with start/end fields
+  - Network and usable host ranges
+  - Range containment and overlap checking
+  - Range size calculation and string formatting
 - Subnet splitting and address iteration
 - Network prefix operations (next/previous network, parent network, subnet relationships)
 - Bitwise operations (AND, OR, XOR, NOT for custom masking and manipulation)
@@ -75,6 +78,11 @@ main :: proc() {
 
     fmt.println(netx.contains4(network, addr))  // true
     fmt.println(netx.host_count4(network))      // 254
+
+    // Work with IP ranges
+    range := netx.network_range4(network)
+    fmt.println(netx.range_to_string4(range))   // 192.168.1.0-192.168.1.255
+    fmt.println(netx.range_contains4(range, addr))  // true
 
     // Navigate network space
     next, _ := netx.next_network4(network)
