@@ -7,9 +7,9 @@ Inspired by Go's [`net/netip`](https://pkg.go.dev/net/netip) package, providing 
 ## Features
 
 ### Core IP/CIDR Operations (`ip.odin`)
-- Parse and format CIDR notation (`192.168.1.0/24`, `2001:db8::/32`)
-- IP classification (private, loopback, multicast, link-local, global unicast)
-- Network operations (contains, overlaps, comparison)
+- **CIDR Parsing**: Parse and format CIDR notation (`192.168.1.0/24`, `2001:db8::/32`)
+- **IP Classification**: Identify private, loopback, multicast, link-local, global unicast addresses
+- **Network Operations**: Contains, overlaps, and comparison operations
 - **IP Range types** (`IP4_Range`/`IP6_Range`): Structured address ranges with start/end fields
   - Network and usable host ranges
   - Range containment and overlap checking
@@ -21,10 +21,16 @@ Inspired by Go's [`net/netip`](https://pkg.go.dev/net/netip) package, providing 
   - Embed IPv4 addresses in IPv6 format (`::ffff:192.0.2.1`)
   - Extract IPv4 from mapped IPv6 addresses
   - Detect and handle dual-stack scenarios
-- Subnet splitting and address iteration
-- Network prefix operations (next/previous network, parent network, subnet relationships)
-- Bitwise operations (AND, OR, XOR, NOT for custom masking and manipulation)
-- Full IPv4 and IPv6 support
+- **Subnet Operations**: Subnet splitting and address iteration
+- **Network Navigation**: Network prefix operations (next/previous network, parent network, subnet relationships)
+- **Bitwise Operations**: AND, OR, XOR, NOT for custom masking and manipulation
+- **Full IPv4/IPv6 Support**: Complete implementation for both protocols
+- **Random IP Generation**: Generate random IPs within specific CIDR blocks
+  - Network-aware random generation
+  - Uniform distribution using Odin's crypto-quality RNG
+  - Handles all network sizes from tiny (/30) to massive (/8) IPv4 networks
+  - Efficient IPv6 random generation for huge spaces
+  - Use cases: Testing, load balancing, simulation, test data generation
 
 ### MAC Address Operations (`mac.odin`)
 - **Parsing**: Multiple formats (colon, hyphen, raw hex)
@@ -64,13 +70,6 @@ Inspired by Go's [`net/netip`](https://pkg.go.dev/net/netip) package, providing 
 - **Memory Efficient**: Stores prefixes, not individual addresses
 - **Use Cases**: Firewalls, routing tables, ACLs, rate limiting, geolocation
 
-### Random IP Generation (`ip.odin`)
-- **Network-Aware**: Generate random IPs within specific CIDR blocks
-- **Uniform Distribution**: Uses Odin's crypto-quality RNG
-- **Handles All Sizes**: Works with tiny (/30) to massive (/8) IPv4 networks
-- **IPv6 Support**: Efficient random generation even for huge IPv6 spaces
-- **Use Cases**: Testing, load balancing, simulation, test data generation
-
 ## Installation
 
 Clone into your project directory:
@@ -80,10 +79,12 @@ cd your_project
 git clone https://github.com/alexferl/netx
 ```
 
-Then import:
+Then import (adjust the path based on your project structure):
 
 ```odin
-import "netx"
+import "netx"  // If netx is in the same directory as your project
+// or
+import "./netx"  // If netx is a subdirectory
 ```
 
 ## Quick Start
@@ -186,3 +187,25 @@ See the [examples](examples/) directory for complete working examples:
 - `ipset/` - IP set radix trees for fast lookups, firewalls, routing, ACLs
 - `mac/` - MAC address parsing, formatting, and conversion
 - `dns/` - Reverse DNS PTR record generation and parsing
+
+## Requirements
+
+- [Odin](https://odin-lang.org/) programming language
+- Optional: [pre-commit](https://pre-commit.com/) for development
+
+## Development
+
+```bash
+# Run tests
+make test
+
+# Check code style and syntax
+make check
+
+# Run pre-commit hooks
+make pre-commit
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
