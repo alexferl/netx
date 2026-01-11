@@ -36,6 +36,11 @@ IP6_Addr_Port :: struct {
 	port: u16,
 }
 
+IP6_Addr_Zone :: struct {
+	addr: net.IP6_Address,
+	zone: string,
+}
+
 // ============================================================================
 // PARSING AND FORMATTING
 // ============================================================================
@@ -250,6 +255,45 @@ must_parse_addr_port6 :: proc(s: string, loc := #caller_location) -> IP6_Addr_Po
 	return addr_port
 }
 
+parse_addr_zone6 :: proc(s: string) -> (addr_zone: IP6_Addr_Zone, ok: bool) {
+	// Look for %zone separator
+	zone_sep := strings.index(s, "%")
+	if zone_sep == -1 {
+		// No zone specified
+		addr, addr_ok := net.parse_ip6_address(s)
+		if !addr_ok {
+			return {}, false
+		}
+		return IP6_Addr_Zone{addr, ""}, true
+	}
+
+	addr_str := s[:zone_sep]
+	zone_str := s[zone_sep+1:]
+
+	addr, addr_ok := net.parse_ip6_address(addr_str)
+	if !addr_ok {
+		return {}, false
+	}
+
+	return IP6_Addr_Zone{addr, zone_str}, true
+}
+
+addr_zone_to_string6 :: proc(addr_zone: IP6_Addr_Zone, allocator := context.allocator) -> string {
+	addr_str := addr_to_string6(addr_zone.addr, context.temp_allocator)
+	if len(addr_zone.zone) > 0 {
+		return fmt.aprintf("%s%%%s", addr_str, addr_zone.zone, allocator = allocator)
+	}
+	return fmt.aprintf("%s", addr_str, allocator = allocator)
+}
+
+must_parse_addr_zone6 :: proc(s: string, loc := #caller_location) -> IP6_Addr_Zone {
+	addr_zone, ok := parse_addr_zone6(s)
+	if !ok {
+		panic("Failed to parse IPv6 address with zone", loc)
+	}
+	return addr_zone
+}
+
 masked4 :: proc(network: IP4_Network) -> IP4_Network {
 	result := network
 	mask, mask_ok := prefix_to_mask4(network.prefix_len)
@@ -301,7 +345,9 @@ prefix_to_mask6 :: proc(prefix_len: u8) -> [8]u16be {
 	}
 
 	if remaining_bits > 0 && full_segments < 8 {
-		mask[full_segments] = u16be(0xFFFF << (16 - remaining_bits))
+		// Create mask with correct bits set
+		mask_bits := u16(0xFFFF) << (16 - remaining_bits)
+		mask[full_segments] = u16be(mask_bits & 0xFFFF)
 	}
 
 	return mask
@@ -368,6 +414,20 @@ apply_mask6 :: proc(addr: net.IP6_Address, mask: [8]u16be) -> net.IP6_Address {
 		result_segments[i] = addr_segments[i] & mask[i]
 	}
 	return cast(net.IP6_Address)result_segments
+}
+
+is_canonical4 :: proc(network: IP4_Network) -> bool {
+	// A network is canonical if applying the mask doesn't change the address
+	// (i.e., all host bits are already zero)
+	masked := masked4(network)
+	return masked.address == network.address
+}
+
+is_canonical6 :: proc(network: IP6_Network) -> bool {
+	// A network is canonical if applying the mask doesn't change the address
+	// (i.e., all host bits are already zero)
+	masked := masked6(network)
+	return masked.address == network.address
 }
 
 // ============================================================================
@@ -1001,7 +1061,7 @@ is_subnet_of4 :: proc(subnet: IP4_Network, parent: IP4_Network) -> bool {
 
 // is_subnet_of6 checks if subnet is a subnet of parent.
 is_subnet_of6 :: proc(subnet: IP6_Network, parent: IP6_Network) -> bool {
-// Subnet must have longer or equal prefix
+	// Subnet must have longer or equal prefix
 	if subnet.prefix_len < parent.prefix_len {
 		return false
 	}
@@ -1277,6 +1337,18 @@ is_ipv4_mapped6 :: proc(addr: net.IP6_Address) -> bool {
 	return u16(segments[5]) == 0xFFFF
 }
 
+is_6to4 :: proc(addr: net.IP6_Address) -> bool {
+	// 6to4 format: 2002::/16 prefix (first 16 bits are 0x2002)
+	segments := cast([8]u16be)addr
+	return u16(segments[0]) == 0x2002
+}
+
+is_teredo :: proc(addr: net.IP6_Address) -> bool {
+	// Teredo format: 2001::/32 prefix (first 32 bits are 0x20010000)
+	segments := cast([8]u16be)addr
+	return u16(segments[0]) == 0x2001 && u16(segments[1]) == 0x0000
+}
+
 // ============================================================================
 // RANDOM IP GENERATION
 // ============================================================================
@@ -1309,22 +1381,83 @@ random_ip6_in_network :: proc(network: IP6_Network) -> net.IP6_Address {
 
 	// Generate random value in range
 	random_val: u128
-	if range_size <= u128(max(u64)) {
-		// Small enough to fit in u64
+	if range_size < u128(max(u64)) {
+		// Small enough to fit in u64, and range_size + 1 won't overflow
 		random_val = start + u128(rand.uint64() % u64(range_size + 1))
 	} else {
-		// Large range, generate full u128
+		// Large range (including max(u64) case), generate full u128
 		// Generate two random u64s
 		high := u128(rand.uint64())
 		low := u128(rand.uint64())
 		random_offset := (high << 64) | low
 
 		// Modulo to fit in range (not perfectly uniform for huge ranges, but good enough)
-		if range_size > 0 {
+		// For max(u64) case, range_size is already max, so we need special handling
+		if range_size == u128(max(u64)) {
+			// This is the /65 case where range is exactly 2^64
+			// Use the random u64 directly since it already fits
+			random_val = start + u128(rand.uint64())
+		} else if range_size > 0 {
 			random_offset = random_offset % (range_size + 1)
+			random_val = start + random_offset
+		} else {
+			random_val = start
 		}
-		random_val = start + random_offset
 	}
 
 	return u128_to_addr6(random_val)
+}
+
+// ============================================================================
+// IANA SPECIAL NETWORKS
+// ============================================================================
+
+// TEST-NET-1: 192.0.2.0/24 - Documentation and examples
+TEST_NET_1 :: proc() -> IP4_Network {
+	return must_parse_cidr4("192.0.2.0/24")
+}
+
+// TEST-NET-2: 198.51.100.0/24 - Documentation and examples
+TEST_NET_2 :: proc() -> IP4_Network {
+	return must_parse_cidr4("198.51.100.0/24")
+}
+
+// TEST-NET-3: 203.0.113.0/24 - Documentation and examples
+TEST_NET_3 :: proc() -> IP4_Network {
+	return must_parse_cidr4("203.0.113.0/24")
+}
+
+// Benchmarking range: 198.18.0.0/15 - Network device benchmarking
+BENCHMARK_NET :: proc() -> IP4_Network {
+	return must_parse_cidr4("198.18.0.0/15")
+}
+
+// Carrier-grade NAT range: 100.64.0.0/10 - Shared address space
+CARRIER_GRADE_NAT_NET :: proc() -> IP4_Network {
+	return must_parse_cidr4("100.64.0.0/10")
+}
+
+// Check if an address is in TEST-NET-1
+test_net_1_addr4 :: proc(addr: net.IP4_Address) -> bool {
+	return contains4(TEST_NET_1(), addr)
+}
+
+// Check if an address is in TEST-NET-2
+test_net_2_addr4 :: proc(addr: net.IP4_Address) -> bool {
+	return contains4(TEST_NET_2(), addr)
+}
+
+// Check if an address is in TEST-NET-3
+test_net_3_addr4 :: proc(addr: net.IP4_Address) -> bool {
+	return contains4(TEST_NET_3(), addr)
+}
+
+// Check if an address is in the benchmarking range
+benchmark_addr4 :: proc(addr: net.IP4_Address) -> bool {
+	return contains4(BENCHMARK_NET(), addr)
+}
+
+// Check if an address is in the carrier-grade NAT range
+is_carrier_grade_nat_addr4 :: proc(addr: net.IP4_Address) -> bool {
+	return contains4(CARRIER_GRADE_NAT_NET(), addr)
 }

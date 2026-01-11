@@ -434,55 +434,165 @@ main :: proc() {
 		}
 	}
 
-	fmt.println("\n--- Random IPs in Small Network ---")
-	small_network := netx.must_parse_cidr4("10.0.0.0/30")  // Only 4 addresses
-	fmt.printf("Generating IPs in %s (only %d addresses):\n",
-		netx.network_to_string4(small_network),
-		1 << (32 - small_network.prefix_len))
 
-	seen_ips := make(map[u32]bool, context.temp_allocator)
-	for _ in 0 ..< 20 {
-		random_ip := netx.random_ip4_in_network(small_network)
-		ip_u32 := netx.addr4_to_u32(random_ip)
-		if !seen_ips[ip_u32] {
-			fmt.printf("  %s (first occurrence)\n", netx.addr_to_string4(random_ip))
-			seen_ips[ip_u32] = true
+	// ========================================================================
+	// IPv6 ZONE ID EXAMPLES (Scoped Addresses)
+	// ========================================================================
+
+	fmt.println("\n========================================")
+	fmt.println("IPv6 ZONE ID EXAMPLES")
+	fmt.println("========================================")
+
+	fmt.println("\n--- IPv6 Addresses with Zone IDs ---")
+	// Parse IPv6 addresses with interface identifiers (zone IDs)
+	link_local_addr := netx.must_parse_addr_zone6("fe80::1%eth0")
+	fmt.printf("Parsed link-local with zone: %s (zone: %s)\n",
+		netx.addr_to_string6(link_local_addr.addr), link_local_addr.zone)
+	fmt.printf("Is this a link-local address? %v\n", netx.is_link_local6(link_local_addr.addr))
+
+	// Round-trip conversion
+	addr_with_zone := netx.IP6_Addr_Zone{link_local_addr.addr, "ens33"}
+	str_with_zone := netx.addr_zone_to_string6(addr_with_zone, context.temp_allocator)
+	fmt.printf("Address with zone ID: %s\n", str_with_zone)
+
+	// Parse IPv6 address without zone (also works)
+	no_zone_addr, ok_no_zone := netx.parse_addr_zone6("2001:db8::1")
+	if ok_no_zone {
+		fmt.printf("Parsed without zone: %s (zone: '%s')\n",
+			netx.addr_to_string6(no_zone_addr.addr), no_zone_addr.zone)
+	}
+	// ========================================================================
+	// MASK CANONICAL FORM EXAMPLES
+	// ========================================================================
+
+	fmt.println("\n========================================")
+	fmt.println("MASK CANONICAL FORM EXAMPLES")
+	fmt.println("========================================")
+
+	fmt.println("\n--- Checking if Networks are Canonical ---")
+	// Canonical networks have all host bits set to zero
+	canonical_net1 := netx.must_parse_cidr4("192.168.1.0/24")
+	fmt.printf("Network %s is canonical: %v\n",
+		netx.network_to_string4(canonical_net1), netx.is_canonical4(canonical_net1))
+
+	canonical_net2 := netx.must_parse_cidr4("10.0.0.0/8")
+	fmt.printf("Network %s is canonical: %v\n",
+		netx.network_to_string4(canonical_net2), netx.is_canonical4(canonical_net2))
+
+	// Non-canonical network (host bits are not zero)
+	non_canonical := netx.network_from4(net.IP4_Address{192, 168, 1, 100}, 24)
+	fmt.printf("Raw network %s is canonical: %v\n",
+		netx.network_to_string4(non_canonical), netx.is_canonical4(non_canonical))
+
+	// Fix by applying mask
+	fixed := netx.masked4(non_canonical)
+	fmt.printf("After masking: %s is canonical: %v\n",
+		netx.network_to_string4(fixed), netx.is_canonical4(fixed))
+
+	fmt.println("\n--- IPv6 Network Canonical Checks ---")
+	ipv6_canonical := netx.must_parse_cidr6("2001:db8::/32")
+	fmt.printf("IPv6 %s is canonical: %v\n",
+		netx.network_to_string6(ipv6_canonical), netx.is_canonical6(ipv6_canonical))
+
+	// Create non-canonical IPv6 network
+	non_canonical6 := netx.network_from6(netx.ipv6_loopback(), 32)
+	fmt.printf("Raw IPv6 %s is canonical: %v\n",
+		netx.network_to_string6(non_canonical6), netx.is_canonical6(non_canonical6))
+
+	fixed6 := netx.masked6(non_canonical6)
+	fmt.printf("After masking: %s is canonical: %v\n",
+		netx.network_to_string6(fixed6), netx.is_canonical6(fixed6))
+
+	// ========================================================================
+	// ADDRESS FAMILY HELPER EXAMPLES
+	// ========================================================================
+
+	fmt.println("\n========================================")
+	fmt.println("ADDRESS FAMILY HELPER EXAMPLES")
+	fmt.println("========================================")
+
+	fmt.println("\n--- Detecting IPv4-Mapped IPv6 Addresses ---")
+	regular_ipv4 := net.IP4_Address{192, 168, 1, 100}
+	mapped_addr := netx.ipv4_to_ipv6_mapped(regular_ipv4)
+	fmt.printf("IPv4 %s mapped to %s\n", netx.addr_to_string4(regular_ipv4), netx.addr_to_string6(mapped_addr))
+	fmt.printf("Is IPv4-mapped? %v\n", netx.is_ipv4_mapped6(mapped))
+
+	regular_ipv6 := netx.must_parse_cidr6("2001:db8::1/128").address
+	fmt.printf("Native IPv6 %s\n", netx.addr_to_string6(regular_ipv6))
+	fmt.printf("Is IPv4-mapped? %v\n", netx.is_ipv4_mapped6(regular_ipv6))
+
+	fmt.println("\n--- Detecting 6to4 Addresses ---")
+	// 6to4 addresses have a 2002::/16 prefix
+	example6to4 := netx.must_parse_cidr6("2002::192.0.2.1/48")
+	fmt.printf("Example 6to4 address: %s\n", netx.addr_to_string6(example6to4.address))
+	fmt.printf("Is 6to4? %v (prefix matches 2002::/16)\n", netx.is_6to4(example6to4.address))
+
+	fmt.printf("Loopback ::1 is 6to4? %v\n", netx.is_6to4(netx.ipv6_loopback()))
+	regular_ipv6_2 := netx.must_parse_cidr6("2001:db8::1/128").address
+	fmt.printf("Regular %s is 6to4? %v\n", netx.addr_to_string6(regular_ipv6_2), netx.is_6to4(regular_ipv6_2))
+
+	fmt.println("\n--- Detecting Teredo Addresses ---")
+	// Teredo addresses have a 2001::/32 prefix with special format
+	teredo_addr := netx.must_parse_cidr6("2001::beef/32").address
+	fmt.printf("Example Teredo-like address: %s\n", netx.addr_to_string6(teredo_addr))
+	fmt.printf("Is Teredo? %v\n", netx.is_teredo(teredo_addr))
+
+	fmt.printf("Loopback ::1 is Teredo? %v\n", netx.is_teredo(netx.ipv6_loopback()))
+	fmt.printf("Regular %s is Teredo? %v\n", netx.addr_to_string6(regular_ipv6_2), netx.is_teredo(regular_ipv6_2))
+
+	// ========================================================================
+	// IANA SPECIAL NETWORKS CONSTANTS EXAMPLES
+	// ========================================================================
+
+	fmt.println("\n========================================")
+	fmt.println("IANA SPECIAL NETWORKS CONSTANTS")
+	fmt.println("========================================")
+
+	fmt.println("\n--- Documentation and Testing Networks ---")
+	// TEST-NET-1, 2, 3: RFC 5737 documentation ranges
+	test_net1 := netx.TEST_NET_1()
+	fmt.printf("TEST-NET-1 (192.0.2.0/24): %s\n", netx.network_to_string4(test_net1))
+
+	test_ip1 := net.IP4_Address{192, 0, 2, 42}
+	fmt.printf("  Is %s in TEST-NET-1? %v\n", netx.addr_to_string4(test_ip1), netx.test_net_1_addr4(test_ip1))
+
+	test_net2 := netx.TEST_NET_2()
+	fmt.printf("TEST-NET-2 (198.51.100.0/24): %s\n", netx.network_to_string4(test_net2))
+
+	test_net3 := netx.TEST_NET_3()
+	fmt.printf("TEST-NET-3 (203.0.113.0/24): %s\n", netx.network_to_string4(test_net3))
+
+	fmt.println("\n--- Benchmarking Networks ---")
+	// 198.18.0.0/15: RFC 2544 benchmarking
+	benchmark_net := netx.BENCHMARK_NET()
+	fmt.printf("Benchmark Network (RFC 2544): %s\n", netx.network_to_string4(benchmark_net))
+
+	bench_ip1 := net.IP4_Address{198, 18, 0, 100}
+	bench_ip2 := net.IP4_Address{198, 19, 255, 200}
+	fmt.printf("  Is %s in benchmark range? %v\n", netx.addr_to_string4(bench_ip1), netx.benchmark_addr4(bench_ip1))
+	fmt.printf("  Is %s in benchmark range? %v\n", netx.addr_to_string4(bench_ip2), netx.benchmark_addr4(bench_ip2))
+
+	fmt.println("\n--- Carrier-Grade NAT (CGNAT) Network ---")
+	// 100.64.0.0/10: RFC 6598 Shared Address Space
+	cgnat_net := netx.CARRIER_GRADE_NAT_NET()
+	fmt.printf("CGNAT Network (RFC 6598): %s\n", netx.network_to_string4(cgnat_net))
+
+	cgnat_test_ips := []net.IP4_Address{
+		{100, 64, 0, 1},        // First in range
+		{100, 100, 50, 25},     // Middle of range
+		{100, 127, 255, 255},   // Last in range
+		{100, 63, 255, 255},    // Just before range
+		{100, 128, 0, 0},       // Just after range
+	}
+
+	for test_ip in cgnat_test_ips {
+		in_range := netx.is_carrier_grade_nat_addr4(test_ip)
+		status := "is"
+		if !in_range {
+			status = "is NOT"
 		}
-	}
-	fmt.printf("Unique IPs generated: %d\n", len(seen_ips))
-
-	fmt.println("\n--- Random IPv6 Addresses ---")
-	ipv6_random_net := netx.must_parse_cidr6("2001:db8::/64")
-	fmt.printf("Generating random IPv6 addresses in %s:\n", netx.network_to_string6(ipv6_random_net))
-	for i in 0 ..< 5 {
-		random_ip6 := netx.random_ip6_in_network(ipv6_random_net)
-		fmt.printf("  Random IPv6 %d: %s\n", i+1, netx.addr_to_string6(random_ip6))
-	}
-
-	fmt.println("\n--- Practical Use: Load Balancer IP Pool ---")
-	lb_pool := netx.must_parse_cidr4("10.10.10.0/28")  // 14 usable IPs
-	fmt.printf("Load balancer pool: %s (%d usable addresses)\n",
-		netx.network_to_string4(lb_pool),
-		netx.host_count4(lb_pool))
-
-	fmt.println("Simulating random backend server selection:")
-	backends := make([dynamic]net.IP4_Address, context.temp_allocator)
-	for i in 0 ..< 5 {
-		backend := netx.random_ip4_in_network(lb_pool)
-		append(&backends, backend)
-		fmt.printf("  Backend %d: %s\n", i+1, netx.addr_to_string4(backend))
-	}
-
-	fmt.println("\n--- Practical Use: Random Test Data Generation ---")
-	test_ranges := []netx.IP4_Network{
-		netx.must_parse_cidr4("192.0.2.0/24"),    // TEST-NET-1
-		netx.must_parse_cidr4("198.51.100.0/24"), // TEST-NET-2
-		netx.must_parse_cidr4("203.0.113.0/24"),  // TEST-NET-3
-	}
-
-	fmt.println("Generating test IPs from documentation ranges:")
-	for test_range, idx in test_ranges {
-		random_test_ip := netx.random_ip4_in_network(test_range)
-		fmt.printf("  Test IP from range %d: %s\n", idx+1, netx.addr_to_string4(random_test_ip))
+		fmt.printf("  %s %s in CGNAT range\n",
+			netx.addr_to_string4(test_ip),
+			status)
 	}
 }

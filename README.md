@@ -21,6 +21,21 @@ Inspired by Go's [`net/netip`](https://pkg.go.dev/net/netip) package, providing 
   - Embed IPv4 addresses in IPv6 format (`::ffff:192.0.2.1`)
   - Extract IPv4 from mapped IPv6 addresses
   - Detect and handle dual-stack scenarios
+- **IPv6 Zone ID Support**: Parse and format scoped IPv6 addresses
+  - Handle link-local addresses with interface identifiers (`fe80::1%eth0`)
+  - `IP6_Addr_Zone` struct for address + zone combinations
+- **Mask Canonical Form Validation**: Check if networks have proper host bit masking
+  - `is_canonical4` and `is_canonical6` verify all host bits are zero
+  - Useful for validating CIDR notation input
+- **Address Family Helpers**: Detect special IPv6 address types
+  - `is_6to4`: Identify 6to4 transition addresses (`2002::/16`)
+  - `is_teredo`: Detect Teredo tunneling addresses (`2001::/32`)
+  - Complements existing IPv4-mapped detection
+- **IANA Special Networks**: Pre-defined constants for testing/documentation
+  - `TEST_NET_1`, `TEST_NET_2`, `TEST_NET_3`: RFC 5737 documentation ranges
+  - `BENCHMARK_NET`: RFC 2544 testing range (198.18.0.0/15)
+  - `CARRIER_GRADE_NAT_NET`: RFC 6598 shared address space (100.64.0.0/10)
+  - Helper functions for membership testing in these ranges
 - **Subnet Operations**: Subnet splitting and address iteration
 - **Network Navigation**: Network prefix operations (next/previous network, parent network, subnet relationships)
 - **Bitwise Operations**: AND, OR, XOR, NOT for custom masking and manipulation

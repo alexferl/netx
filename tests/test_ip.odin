@@ -2274,3 +2274,158 @@ test_random_ip6_small_network :: proc(t: ^testing.T) {
 		testing.expect(t, netx.contains6(network, random_ip), "IPv6 should be in /126 network")
 	}
 }
+
+
+
+// ============================================================================
+// IPv6 ZONE ID TESTS
+// ============================================================================
+
+@(test)
+test_parse_addr_zone6 :: proc(t: ^testing.T) {
+	// Parse IPv6 with zone
+	addr_zone, ok := netx.parse_addr_zone6("fe80::1%eth0")
+	testing.expect(t, ok, "Should parse IPv6 with zone")
+	testing.expect_value(t, addr_zone.zone, "eth0")
+	testing.expect(t, netx.is_link_local6(addr_zone.addr), "Should be link-local")
+
+	// Parse without zone
+	addr_zone2, ok2 := netx.parse_addr_zone6("2001:db8::1")
+	testing.expect(t, ok2, "Should parse IPv6 without zone")
+	testing.expect_value(t, len(addr_zone2.zone), 0)
+	testing.expect(t, !netx.is_link_local6(addr_zone2.addr), "Should not be link-local")
+
+	// Invalid
+	_, bad := netx.parse_addr_zone6("not-an-ip%eth0")
+	testing.expect(t, !bad, "Should fail with invalid IP")
+}
+
+@(test)
+test_addr_zone_to_string6 :: proc(t: ^testing.T) {
+	// With zone
+	addr_zone := netx.IP6_Addr_Zone{netx.ipv6_unspecified(), "eth0"}
+	str := netx.addr_zone_to_string6(addr_zone, context.temp_allocator)
+	testing.expect(t, strings.contains(str, "%eth0"), "String should contain zone")
+
+	// Without zone
+	addr_zone2 := netx.IP6_Addr_Zone{netx.ipv6_loopback(), ""}
+	str2 := netx.addr_zone_to_string6(addr_zone2, context.temp_allocator)
+	testing.expect(t, !strings.contains(str2, "%"), "String should not contain zone")
+	testing.expect(t, strings.contains(str2, "::1"), "String should be ::1")
+}
+
+@(test)
+test_is_canonical4 :: proc(t: ^testing.T) {
+	// Canonical (host bits are zero)
+	network1 := netx.must_parse_cidr4("192.168.1.0/24")
+	testing.expect(t, netx.is_canonical4(network1), "Should be canonical (192.168.1.0/24)")
+
+	network2 := netx.must_parse_cidr4("10.0.0.0/8")
+	testing.expect(t, netx.is_canonical4(network2), "Should be canonical (10.0.0.0/8)")
+
+	// Not canonical (host bits are not zero)
+	network3 := netx.network_from4(net.IP4_Address{192, 168, 1, 100}, 24)
+	testing.expect(t, !netx.is_canonical4(network3), "Should not be canonical (192.168.1.100/24)")
+
+	network4 := netx.network_from4(net.IP4_Address{10, 20, 30, 40}, 16)
+	testing.expect(t, !netx.is_canonical4(network4), "Should not be canonical (10.20.30.40/16)")
+
+	// /32 is always canonical
+	network5 := netx.must_parse_cidr4("192.168.1.100/32")
+	testing.expect(t, netx.is_canonical4(network5), "/32 should always be canonical")
+}
+
+@(test)
+test_is_canonical6 :: proc(t: ^testing.T) {
+	// Canonical (host bits are zero)
+	network1 := netx.must_parse_cidr6("2001:db8::/32")
+	testing.expect(t, netx.is_canonical6(network1), "Should be canonical (2001:db8::/32)")
+
+	network2 := netx.must_parse_cidr6("fe80::/10")
+	testing.expect(t, netx.is_canonical6(network2), "Should be canonical (fe80::/10)")
+
+	// Not canonical (host bits are not zero)
+	segments := [8]u16be{0x2001, 0x0db8, 0x1234, 0, 0, 0, 0, 0}
+	network3 := netx.network_from6(cast(net.IP6_Address)segments, 32)
+	testing.expect(t, !netx.is_canonical6(network3), "Should not be canonical (non-zero host bits)")
+
+	// /128 is always canonical
+	network4 := netx.must_parse_cidr6("2001:db8::1/128")
+	testing.expect(t, netx.is_canonical6(network4), "/128 should always be canonical")
+}
+
+// ============================================================================
+// ADDRESS FAMILY HELPER TESTS
+// ============================================================================
+
+@(test)
+test_is_6to4 :: proc(t: ^testing.T) {
+	// Valid 6to4 addresses
+	testing.expect(t, !netx.is_6to4(netx.ipv6_loopback()), "Loopback should not be 6to4")
+	testing.expect(t, !netx.is_6to4(netx.ipv6_unspecified()), "Unspecified should not be 6to4")
+
+	segments := [8]u16be{0x2001, 0x0db8, 0, 0, 0, 0, 0, 1}
+	not_6to4 := cast(net.IP6_Address)segments
+	testing.expect(t, !netx.is_6to4(not_6to4), "2001:db8::1 should not be 6to4")
+}
+
+@(test)
+test_is_teredo :: proc(t: ^testing.T) {
+	// Valid Teredo addresses
+	segments := [8]u16be{0x2001, 0x0000, 0, 0, 0, 0, 0, 1}
+	teredo := cast(net.IP6_Address)segments
+	testing.expect(t, netx.is_teredo(teredo), "Should detect Teredo")
+
+	// Not Teredo
+	testing.expect(t, !netx.is_teredo(netx.ipv6_loopback()), "Loopback should not be Teredo")
+	testing.expect(t, !netx.is_teredo(netx.ipv6_unspecified()), "Unspecified should not be Teredo")
+
+	segments2 := [8]u16be{0x2001, 0x0db8, 0, 0, 0, 0, 0, 1}
+	not_teredo := cast(net.IP6_Address)segments2
+	testing.expect(t, !netx.is_teredo(not_teredo), "2001:db8::1 should not be Teredo")
+
+	segments3 := [8]u16be{0x2001, 0x0001, 0, 0, 0, 0, 0, 1}
+	not_teredo2 := cast(net.IP6_Address)segments3
+	testing.expect(t, !netx.is_teredo(not_teredo2), "2001:1::1 should not be Teredo")
+}
+
+// ============================================================================
+// IANA SPECIAL NETWORKS TESTS
+// ============================================================================
+
+@(test)
+test_iana_special_networks :: proc(t: ^testing.T) {
+	// Test TEST-NET-1
+	test_net1 := netx.TEST_NET_1()
+	testing.expect_value(t, test_net1.prefix_len, 24)
+	testing.expect(t, netx.test_net_1_addr4(net.IP4_Address{192, 0, 2, 1}), "Should be in TEST-NET-1")
+	testing.expect(t, !netx.test_net_1_addr4(net.IP4_Address{192, 0, 3, 1}), "Should not be in TEST-NET-1")
+
+	// Test TEST-NET-2
+	test_net2 := netx.TEST_NET_2()
+	testing.expect_value(t, test_net2.prefix_len, 24)
+	testing.expect(t, netx.test_net_2_addr4(net.IP4_Address{198, 51, 100, 1}), "Should be in TEST-NET-2")
+	testing.expect(t, !netx.test_net_2_addr4(net.IP4_Address{198, 51, 101, 1}), "Should not be in TEST-NET-2")
+
+	// Test TEST-NET-3
+	test_net3 := netx.TEST_NET_3()
+	testing.expect_value(t, test_net3.prefix_len, 24)
+	testing.expect(t, netx.test_net_3_addr4(net.IP4_Address{203, 0, 113, 1}), "Should be in TEST-NET-3")
+	testing.expect(t, !netx.test_net_3_addr4(net.IP4_Address{203, 0, 114, 1}), "Should not be in TEST-NET-3")
+
+	// Test BENCHMARK_NET
+	benchmark := netx.BENCHMARK_NET()
+	testing.expect_value(t, benchmark.prefix_len, 15)
+	testing.expect(t, netx.benchmark_addr4(net.IP4_Address{198, 18, 0, 1}), "Should be in benchmarking range")
+	testing.expect(t, netx.benchmark_addr4(net.IP4_Address{198, 19, 255, 255}), "Should be in benchmarking range")
+	testing.expect(t, !netx.benchmark_addr4(net.IP4_Address{198, 17, 255, 255}), "Should not be in benchmarking range")
+	testing.expect(t, !netx.benchmark_addr4(net.IP4_Address{198, 20, 0, 0}), "Should not be in benchmarking range")
+
+	// Test CARRIER_GRADE_NAT_NET
+	cgnat := netx.CARRIER_GRADE_NAT_NET()
+	testing.expect_value(t, cgnat.prefix_len, 10)
+	testing.expect(t, netx.is_carrier_grade_nat_addr4(net.IP4_Address{100, 64, 0, 1}), "Should be in CGNAT range")
+	testing.expect(t, netx.is_carrier_grade_nat_addr4(net.IP4_Address{100, 127, 255, 255}), "Should be in CGNAT range")
+	testing.expect(t, !netx.is_carrier_grade_nat_addr4(net.IP4_Address{100, 63, 255, 255}), "Should not be in CGNAT range")
+	testing.expect(t, !netx.is_carrier_grade_nat_addr4(net.IP4_Address{100, 128, 0, 0}), "Should not be in CGNAT range")
+}
